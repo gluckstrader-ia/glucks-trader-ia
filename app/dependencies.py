@@ -43,12 +43,6 @@ def get_current_active_user(
             detail="Usuário bloqueado",
         )
 
-    if not user_has_access(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário sem acesso ativo",
-        )
-
     return current_user
 
 
