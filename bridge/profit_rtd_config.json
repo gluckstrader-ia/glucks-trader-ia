@@ -1,0 +1,18 @@
+{
+  "workbook_name": "profit_rtd.xlsx",
+  "sheet_name": "feed",
+  "start_row": 2,
+  "poll_interval_seconds": 1.0,
+  "columns": {
+    "symbol": "A",
+    "date": "B",
+    "time": "C",
+    "price": "D",
+    "open": "E",
+    "high": "F",
+    "low": "G",
+    "close": "H",
+    "volume": "I"
+  },
+  "accepted_symbols": ["WIN", "WDO", "WINFUT", "WDOFUT"]
+}

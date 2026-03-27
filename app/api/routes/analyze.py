@@ -1,0 +1,56 @@
+from typing import Any, Dict, Literal
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from app.dependencies import get_current_active_user
+from app.models import User
+from app.services.analysis_service import analyze_asset
+
+router = APIRouter(tags=["analyze"])
+
+
+class AnalyzeRequest(BaseModel):
+    asset: str
+    asset_type: Literal[
+        "crypto",
+        "forex",
+        "stock",
+        "index",
+        "indices",
+        "acoes",
+        "acao",
+        "b3",
+        "acao_br",
+        "acoes_br",
+        "stock_br",
+        "future_br"
+    ]
+    timeframe: Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+
+
+@router.post("/analyze", response_model=Dict[str, Any])
+async def analyze(
+    payload: AnalyzeRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    try:
+        asset_type_normalized = payload.asset_type
+
+        if asset_type_normalized == "indices":
+            asset_type_normalized = "index"
+        elif asset_type_normalized in {"acoes", "acao"}:
+            asset_type_normalized = "stock"
+        elif asset_type_normalized in {"acao_br", "acoes_br", "stock_br"}:
+            asset_type_normalized = "b3"
+        elif asset_type_normalized == "future_br":
+            asset_type_normalized = "future_br"
+
+        return analyze_asset(
+            asset=payload.asset,
+            asset_type=asset_type_normalized,
+            timeframe=payload.timeframe,
+        )
+    except Exception as e:
+        print(f"ERRO NO /api/analyze: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
