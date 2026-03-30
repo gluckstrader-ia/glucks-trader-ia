@@ -26,7 +26,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix=API_V1_PREFIX)
 app.include_router(analyze_router, prefix=API_V1_PREFIX)
 app.include_router(radar_router, prefix=API_V1_PREFIX)
-app.include_router(payments_router, prefix=API_V1_PREFIX)
+app.include_router(payments_router)
 
 @app.get("/")
 def root():
