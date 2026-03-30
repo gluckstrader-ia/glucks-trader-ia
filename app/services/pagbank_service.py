@@ -8,11 +8,9 @@ FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "").rstrip("/")
 async def create_pagbank_checkout(user_email: str, plan_name: str, amount_cents: int):
     url = f"{PAGBANK_API_URL}/checkouts"
 
-    redirect_url = f"{FRONTEND_BASE_URL}/premium"
-
     payload = {
         "reference_id": f"{user_email}-{plan_name}",
-        "return_url": return_url,
+        "return_url": f"{FRONTEND_BASE_URL}/premium",
         "items": [
             {
                 "reference_id": plan_name.lower(),
@@ -30,5 +28,8 @@ async def create_pagbank_checkout(user_email: str, plan_name: str, amount_cents:
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(url, json=payload, headers=headers)
-        response.raise_for_status()
+
+        if response.status_code >= 400:
+            raise Exception(f"PagBank {response.status_code}: {response.text}")
+
         return response.json()
