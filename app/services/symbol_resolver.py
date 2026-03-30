@@ -9,7 +9,8 @@ def get_twelve_data_symbol(asset: str) -> str:
         "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
         "USDCHF", "NZDUSD", "EURJPY", "GBPJPY", "EURGBP",
         "EURAUD", "EURCAD", "GBPCHF", "GBPAUD", "AUDJPY",
-        "CADJPY", "CHFJPY", "AUDCAD", "AUDCHF", "NZDJPY"
+        "CADJPY", "CHFJPY", "AUDCAD", "AUDCHF", "NZDJPY",
+        "XAUUSD",
     }
 
     if asset in forex_pairs:
@@ -22,7 +23,10 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
     asset_type = str(asset_type).lower().strip()
 
     if asset_type == "forex":
-        return f"{asset}=X"
+        forex_map = {
+            "XAUUSD": "GC=F",
+        }
+        return forex_map.get(asset, f"{asset}=X")
 
     if asset_type == "crypto":
         if asset.endswith("USDT"):
@@ -57,6 +61,24 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
     if asset_type in {"stock", "acoes", "acao"}:
         return asset
 
+    if asset_type in {"future_br", "futuro_br", "futuros_br"}:
+        future_br_map = {
+            "WIN": "^BVSP",
+            "WINFUT": "^BVSP",
+            "MINIINDICE": "^BVSP",
+            "WDO": "BRL=X",
+            "WDOFUT": "BRL=X",
+            "MINIDOLAR": "BRL=X",
+        }
+        return future_br_map.get(asset, asset)
+
+    if asset_type in {"future_us", "futuro_us", "futuros_us"}:
+        future_us_map = {
+            "NGCJ": "MGC=F",
+            "MNQ": "NQ=F",
+        }
+        return future_us_map.get(asset, asset)
+
     return asset
 
 
@@ -73,3 +95,17 @@ def get_br_futures_symbol(asset: str) -> str:
     }
 
     return futures_map.get(asset, asset)
+
+
+def resolve_provider_symbol(asset: str, asset_type: str, provider: str = "yfinance") -> str:
+    asset = normalize_asset(asset)
+    asset_type = str(asset_type).lower().strip()
+    provider = str(provider).lower().strip()
+
+    if provider == "twelvedata":
+        return get_twelve_data_symbol(asset)
+
+    if provider == "yfinance":
+        return get_yfinance_symbol(asset, asset_type)
+
+    return asset

@@ -2,6 +2,7 @@ from typing import Any, Dict
 
 import pandas as pd
 
+from app.services.symbol_resolver import resolve_provider_symbol
 from app.services.market_data_service import get_market_data
 from app.indicators import (
     calculate_sma,
@@ -264,6 +265,15 @@ def calculate_trade_levels(
 
 
 def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]:
+
+    provider_symbol = resolve_provider_symbol(asset, asset_type, "yfinance")
+
+    print("========== ANALYZE ==========")
+    print("asset original:", asset)
+    print("asset_type:", asset_type)
+    print("provider_symbol:", provider_symbol)
+    print("=============================")
+
     df = get_market_data(
         asset=asset,
         asset_type=asset_type,
