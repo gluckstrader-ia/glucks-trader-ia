@@ -33,7 +33,7 @@ async def create_checkout(data: dict, current_user=Depends(get_current_user)):
     if not pay_url:
         raise HTTPException(
             status_code=500,
-            detail="Link de pagamento não retornado pelo PagBank"
+            detail=f"Checkout criado sem link PAY. Resposta: {checkout}"
         )
 
     return {
