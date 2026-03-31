@@ -265,7 +265,17 @@ def calculate_trade_levels(
 
 
 def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]:
-    provider_symbol = resolve_provider_symbol(asset, asset_type, "yfinance")
+    asset = str(asset).upper().strip()
+    asset_type = str(asset_type).lower().strip()
+
+    # Mantém o comportamento antigo do EURUSD e demais forex,
+    # exceto XAUUSD, que precisa de tratamento especial.
+    if asset_type in {"future_us", "futuro_us", "futuros_us"}:
+        provider_symbol = resolve_provider_symbol(asset, asset_type, "yfinance")
+    elif asset_type == "forex" and asset == "XAUUSD":
+        provider_symbol = resolve_provider_symbol(asset, asset_type, "yfinance")
+    else:
+        provider_symbol = asset
 
     print("========== ANALYZE ==========")
     print("asset original:", asset)
@@ -275,18 +285,22 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     print("=============================")
 
     try:
+        prefer_binance = asset_type == "crypto"
+
         df = get_market_data(
             asset=provider_symbol,
             asset_type=asset_type,
             timeframe=timeframe,
-            prefer_binance=True,
+            prefer_binance=prefer_binance,
         )
 
         df = validate_dataframe(df)
 
     except Exception as e:
         print("ERRO AO BUSCAR DADOS:", repr(e))
-        raise ValueError(f"Falha ao carregar dados de mercado para {asset} ({provider_symbol}): {str(e)}")
+        raise ValueError(
+            f"Falha ao carregar dados de mercado para {asset} ({provider_symbol}): {str(e)}"
+        )
     
     print("TOTAL DE CANDLES RECEBIDOS:", len(df))
     print(df.tail(10))
