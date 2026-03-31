@@ -113,37 +113,60 @@ def fetch_from_yfinance(symbol: str, timeframe: str, asset_type: str) -> pd.Data
     return normalize_yfinance_columns(df)
 
 
+def is_pre_resolved_yfinance_symbol(asset: str) -> bool:
+    asset = str(asset).upper().strip()
+
+    # exemplos:
+    # GC=F, MGC=F, NQ=F, BTC-USD, PETR4.SA, ^BVSP
+    return (
+        "=F" in asset
+        or asset.endswith(".SA")
+        or asset.startswith("^")
+        or "-USD" in asset
+    )
+
+
 def get_market_data(
     asset: str,
     asset_type: str,
     timeframe: str,
     prefer_binance: bool = True,
 ) -> pd.DataFrame:
+    asset = str(asset).upper().strip()
     asset_type = str(asset_type).lower().strip()
 
     if asset_type == "forex":
-        try:
-            td_symbol = get_twelve_data_symbol(asset)
-            df = fetch_from_twelve_data(
-                symbol=td_symbol,
-                interval=timeframe_to_twelvedata_interval(timeframe),
-                outputsize=300,
-            )
-            if not df.empty:
-                return df
-        except Exception as e:
-            print(f"[FALLBACK] Twelve Data falhou para {asset}: {e}")
+        # Se já veio resolvido para yfinance (ex: GC=F), pula TwelveData
+        if is_pre_resolved_yfinance_symbol(asset):
+            try:
+                df = fetch_from_yfinance(asset, timeframe, asset_type)
+                if not df.empty:
+                    return df
+            except Exception as e:
+                print(f"[FALLBACK] yfinance falhou para forex resolvido {asset}: {e}")
+        else:
+            try:
+                td_symbol = get_twelve_data_symbol(asset)
+                df = fetch_from_twelve_data(
+                    symbol=td_symbol,
+                    interval=timeframe_to_twelvedata_interval(timeframe),
+                    outputsize=300,
+                )
+                if not df.empty:
+                    return df
+            except Exception as e:
+                print(f"[FALLBACK] Twelve Data falhou para {asset}: {e}")
 
-        try:
-            yf_symbol = get_yfinance_symbol(asset, asset_type)
-            df = fetch_from_yfinance(yf_symbol, timeframe, asset_type)
-            if not df.empty:
-                return df
-        except Exception as e:
-            print(f"[FALLBACK] yfinance falhou para forex {asset}: {e}")
+            try:
+                yf_symbol = get_yfinance_symbol(asset, asset_type)
+                df = fetch_from_yfinance(yf_symbol, timeframe, asset_type)
+                if not df.empty:
+                    return df
+            except Exception as e:
+                print(f"[FALLBACK] yfinance falhou para forex {asset}: {e}")
 
     elif asset_type == "crypto":
-        if prefer_binance:
+        if prefer_binance and not is_pre_resolved_yfinance_symbol(asset):
             try:
                 df = fetch_from_binance(symbol=asset, timeframe=timeframe, limit=300)
                 if not df.empty:
@@ -152,7 +175,7 @@ def get_market_data(
                 print(f"[FALLBACK] Binance falhou para {asset}: {e}")
 
         try:
-            yf_symbol = get_yfinance_symbol(asset, asset_type)
+            yf_symbol = asset if is_pre_resolved_yfinance_symbol(asset) else get_yfinance_symbol(asset, asset_type)
             df = fetch_from_yfinance(yf_symbol, timeframe, asset_type)
             if not df.empty:
                 return df
@@ -174,6 +197,15 @@ def get_market_data(
 
         raise ValueError(f"Provider de futuros BR não configurado ou sem dados para {asset}")
 
+    elif asset_type in {"future_us", "futuro_us", "futuros_us"}:
+        try:
+            yf_symbol = asset if is_pre_resolved_yfinance_symbol(asset) else get_yfinance_symbol(asset, asset_type)
+            df = fetch_from_yfinance(yf_symbol, timeframe, asset_type)
+            if not df.empty:
+                return df
+        except Exception as e:
+            print(f"[FALLBACK] yfinance falhou para futuros US {asset}: {e}")
+
     elif asset_type in {
         "stock",
         "acao",
@@ -186,7 +218,7 @@ def get_market_data(
         "stock_br",
     }:
         try:
-            yf_symbol = get_yfinance_symbol(asset, asset_type)
+            yf_symbol = asset if is_pre_resolved_yfinance_symbol(asset) else get_yfinance_symbol(asset, asset_type)
             df = fetch_from_yfinance(yf_symbol, timeframe, asset_type)
             if not df.empty:
                 return df
@@ -195,7 +227,7 @@ def get_market_data(
 
     else:
         try:
-            yf_symbol = get_yfinance_symbol(asset, asset_type)
+            yf_symbol = asset if is_pre_resolved_yfinance_symbol(asset) else get_yfinance_symbol(asset, asset_type)
             df = fetch_from_yfinance(yf_symbol, timeframe, asset_type)
             if not df.empty:
                 return df

@@ -265,24 +265,29 @@ def calculate_trade_levels(
 
 
 def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]:
-
     provider_symbol = resolve_provider_symbol(asset, asset_type, "yfinance")
 
     print("========== ANALYZE ==========")
     print("asset original:", asset)
     print("asset_type:", asset_type)
+    print("timeframe:", timeframe)
     print("provider_symbol:", provider_symbol)
     print("=============================")
 
-    df = get_market_data(
-        asset=asset,
-        asset_type=asset_type,
-        timeframe=timeframe,
-        prefer_binance=True,
-    )
+    try:
+        df = get_market_data(
+            asset=provider_symbol,
+            asset_type=asset_type,
+            timeframe=timeframe,
+            prefer_binance=True,
+        )
 
-    df = validate_dataframe(df)
+        df = validate_dataframe(df)
 
+    except Exception as e:
+        print("ERRO AO BUSCAR DADOS:", repr(e))
+        raise ValueError(f"Falha ao carregar dados de mercado para {asset} ({provider_symbol}): {str(e)}")
+    
     print("TOTAL DE CANDLES RECEBIDOS:", len(df))
     print(df.tail(10))
 

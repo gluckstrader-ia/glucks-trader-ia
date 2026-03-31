@@ -24,7 +24,10 @@ class AnalyzeRequest(BaseModel):
         "acao_br",
         "acoes_br",
         "stock_br",
-        "future_br"
+        "future_br",
+        "future_us",
+        "futuro_us",
+        "futuros_us",
     ]
     timeframe: Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
 
@@ -45,12 +48,19 @@ async def analyze(
             asset_type_normalized = "b3"
         elif asset_type_normalized == "future_br":
             asset_type_normalized = "future_br"
+        elif asset_type_normalized in {"future_us", "futuro_us", "futuros_us"}:
+            asset_type_normalized = "future_us"
 
         return analyze_asset(
             asset=payload.asset,
             asset_type=asset_type_normalized,
             timeframe=payload.timeframe,
         )
+
+    except ValueError as e:
+        print(f"ERRO DE VALIDAÇÃO NO /api/analyze: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
     except Exception as e:
         print(f"ERRO NO /api/analyze: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Erro interno ao gerar análise: {str(e)}")

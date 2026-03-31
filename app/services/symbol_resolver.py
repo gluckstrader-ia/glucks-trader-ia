@@ -22,12 +22,14 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
     asset = normalize_asset(asset)
     asset_type = str(asset_type).lower().strip()
 
+    # FOREX
     if asset_type == "forex":
         forex_map = {
             "XAUUSD": "GC=F",
         }
         return forex_map.get(asset, f"{asset}=X")
 
+    # CRYPTO
     if asset_type == "crypto":
         if asset.endswith("USDT"):
             return f"{asset[:-4]}-USD"
@@ -37,6 +39,7 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
             return asset
         return f"{asset}-USD"
 
+    # ÍNDICES
     if asset_type in {"index", "indices"}:
         index_map = {
             "SPX": "^GSPC",
@@ -53,14 +56,17 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
         }
         return index_map.get(asset, asset)
 
+    # B3
     if asset_type in {"b3", "acao_br", "acoes_br", "stock_br"}:
         if asset.endswith(".SA"):
             return asset
         return f"{asset}.SA"
 
+    # AÇÕES EUA / GERAIS
     if asset_type in {"stock", "acoes", "acao"}:
         return asset
 
+    # FUTUROS BR
     if asset_type in {"future_br", "futuro_br", "futuros_br"}:
         future_br_map = {
             "WIN": "^BVSP",
@@ -72,10 +78,26 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
         }
         return future_br_map.get(asset, asset)
 
+    # FUTUROS US
     if asset_type in {"future_us", "futuro_us", "futuros_us"}:
         future_us_map = {
+            # Mini Ouro / Micro Gold
             "NGCJ": "MGC=F",
+            "MGC": "MGC=F",
+            "MGC1!": "MGC=F",
+
+            # Mini Nasdaq / Nasdaq future
             "MNQ": "NQ=F",
+            "NQ": "NQ=F",
+            "MNQ1!": "NQ=F",
+
+            # Aliases extras úteis
+            "ES": "ES=F",
+            "ES1!": "ES=F",
+            "CL": "CL=F",
+            "CL1!": "CL=F",
+            "GC": "GC=F",
+            "GC1!": "GC=F",
         }
         return future_us_map.get(asset, asset)
 
