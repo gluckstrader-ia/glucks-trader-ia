@@ -117,9 +117,10 @@ def is_pre_resolved_yfinance_symbol(asset: str) -> bool:
     asset = str(asset).upper().strip()
 
     # exemplos:
-    # GC=F, MGC=F, NQ=F, BTC-USD, PETR4.SA, ^BVSP
+    # GC=F, MGC=F, NQ=F, EURUSD=X, BTC-USD, PETR4.SA, ^BVSP
     return (
         "=F" in asset
+        or "=X" in asset
         or asset.endswith(".SA")
         or asset.startswith("^")
         or "-USD" in asset
