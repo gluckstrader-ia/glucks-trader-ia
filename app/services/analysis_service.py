@@ -869,8 +869,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         },
 
         "insights": {
-            "bullish_factors": signal.get["bullish_points",0],
-            "bearish_factors": signal.get["bearish_points",0],
+            "bullish_factors": signal.get("bullish_points", 0),
+            "bearish_factors": signal.get("bearish_points", 0),
             "neutral_factors": neutral_signals,
             "items": [
                 f"Preço atual: {round(close, 6)}",
