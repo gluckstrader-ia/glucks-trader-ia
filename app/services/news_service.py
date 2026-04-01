@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List
 import xml.etree.ElementTree as ET
-
 import requests
-
+import re
+import html
 
 DEFAULT_TIMEOUT = 12
 
@@ -51,6 +51,26 @@ def _format_pub_date(pub_date: str | None) -> str:
     return "Agora há pouco"
 
 
+def _clean_html_summary(raw_html: str, max_len: int = 320) -> str:
+    text = html.unescape(raw_html or "")
+
+    text = re.sub(r"<script.*?>.*?</script>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<style.*?>.*?</style>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<img[^>]*>", " ", text, flags=re.IGNORECASE)
+
+    text = re.sub(r"</p>|<br\s*/?>|</div>|</li>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<li[^>]*>", "• ", text, flags=re.IGNORECASE)
+
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("\xa0", " ")
+    text = re.sub(r"\s+", " ", text).strip()
+
+    if len(text) > max_len:
+        text = text[:max_len].rsplit(" ", 1)[0] + "..."
+
+    return text or "Sem resumo disponível."
+
+
 def get_market_news() -> List[Dict[str, Any]]:
     feeds = [
         "https://www.infomoney.com.br/feed/",
@@ -70,11 +90,18 @@ def get_market_news() -> List[Dict[str, Any]]:
                 continue
 
             for item in channel.findall("item")[:6]:
-                title = _safe_text(item.findtext("title"), "Sem título")
-                summary = _safe_text(item.findtext("description"), "Sem resumo disponível.")
+                title_raw = _safe_text(item.findtext("title"), "Sem título")
+                description_raw = _safe_text(item.findtext("description"), "Sem resumo disponível.")
                 link = _safe_text(item.findtext("link"))
                 pub_date = _safe_text(item.findtext("pubDate"))
-                author = _safe_text(item.findtext("author"), "Redação")
+
+                author = (
+                    _safe_text(item.findtext("{http://purl.org/dc/elements/1.1/}creator"))
+                    or _safe_text(item.findtext("author"), "Redação")
+                )
+
+                title = _clean_html_summary(title_raw, max_len=180)
+                summary = _clean_html_summary(description_raw, max_len=320)
 
                 items.append(
                     {
@@ -87,7 +114,8 @@ def get_market_news() -> List[Dict[str, Any]]:
                         "url": link,
                     }
                 )
-        except Exception:
+        except Exception as e:
+            print(f"Erro ao ler feed {feed_url}: {e}")
             continue
 
     if items:
@@ -107,8 +135,6 @@ def get_market_news() -> List[Dict[str, Any]]:
 
 
 def get_economic_events() -> List[Dict[str, Any]]:
-    # fallback inicial
-    # depois você pode trocar por API real (TradingEconomics, FMP, etc.)
     return [
         {
             "time": "09:00",
