@@ -232,6 +232,108 @@ def determine_direction(
     }
 
 
+def calculate_module_confluence(
+    close: float,
+    ema9: float,
+    ema21: float,
+    sma20: float,
+    sma50: float,
+    rsi: float,
+    atr: float,
+    direction: str,
+    zone_position_pct: float,
+) -> Dict[str, Any]:
+    technical_score = 50.0
+    smc_score = 50.0
+    probabilistic_score = 50.0
+    timing_score = 50.0
+
+    # TÉCNICA
+    if sma20 > sma50:
+        technical_score += 12
+    elif sma20 < sma50:
+        technical_score -= 12
+
+    if ema9 > ema21:
+        technical_score += 10
+    elif ema9 < ema21:
+        technical_score -= 10
+
+    if close > ema9:
+        technical_score += 8
+    else:
+        technical_score -= 8
+
+    if rsi >= 60:
+        technical_score += 10
+    elif rsi <= 40:
+        technical_score -= 10
+    else:
+        technical_score += (rsi - 50) * 0.4
+
+    # SMC
+    if direction == "COMPRA":
+        if zone_position_pct <= 35:
+            smc_score += 18
+        elif zone_position_pct >= 70:
+            smc_score -= 12
+        else:
+            smc_score += 4
+    elif direction == "VENDA":
+        if zone_position_pct >= 65:
+            smc_score += 18
+        elif zone_position_pct <= 30:
+            smc_score -= 12
+        else:
+            smc_score += 4
+    else:
+        smc_score -= 5
+
+    # PROBABILÍSTICA
+    atr_pct = (atr / close) * 100 if close else 0
+
+    if atr_pct <= 0.8:
+        probabilistic_score += 10
+    elif atr_pct <= 1.5:
+        probabilistic_score += 4
+    elif atr_pct > 2.5:
+        probabilistic_score -= 12
+    else:
+        probabilistic_score -= 4
+
+    if direction == "NEUTRO":
+        probabilistic_score -= 8
+
+    # TIMING
+    if atr_pct <= 1.8:
+        timing_score += 6
+    else:
+        timing_score -= 6
+
+    if direction == "NEUTRO":
+        timing_score -= 6
+
+    technical_score = round(max(5, min(98, technical_score)), 1)
+    smc_score = round(max(5, min(98, smc_score)), 1)
+    probabilistic_score = round(max(5, min(98, probabilistic_score)), 1)
+    timing_score = round(max(5, min(98, timing_score)), 1)
+
+    final_confluence_score = round(
+        (technical_score * 0.40)
+        + (smc_score * 0.25)
+        + (probabilistic_score * 0.20)
+        + (timing_score * 0.15),
+        1,
+    )
+
+    return {
+        "technical_score": technical_score,
+        "smc_score": smc_score,
+        "probabilistic_score": probabilistic_score,
+        "timing_score": timing_score,
+        "final_confluence_score": final_confluence_score,
+    }
+
 def calculate_trade_levels(
     direction: str,
     close: float,
@@ -511,6 +613,19 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     else:
         zone_label = "Equilíbrio"
 
+
+    confluence = calculate_module_confluence(
+        close=close,
+        ema9=ema9,
+        ema21=ema21,
+        sma20=sma20,
+        sma50=sma50,
+        rsi=rsi14,
+        atr=atr14,
+        direction=direction,
+        zone_position_pct=zone_position_pct,
+    )    
+
     smc_bias = "BULLISH" if direction == "COMPRA" else "BEARISH" if direction == "VENDA" else "NEUTRAL"
 
     primary_entry = buy_entry if direction == "COMPRA" else sell_entry if direction == "VENDA" else close
@@ -533,17 +648,17 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         "risk_reward": primary_risk_reward,
 
         "modules": {
-            "technical": round(score, 1),
-            "smc": round(score - 5, 1) if score >= 5 else round(score, 1),
+            "technical": confluence["technical_score"],
+            "smc": confluence["smc_score"],
             "harmonic": 52,
-            "wegd": round(score - 3, 1) if score >= 3 else round(score, 1),
-            "probabilistic": round(score, 1),
-            "timing": 60,
+            "wegd": round((confluence["technical_score"] + confluence["smc_score"]) / 2, 1),
+            "probabilistic": confluence["probabilistic_score"],
+            "timing": confluence["timing_score"],
         },
 
         "summary": {
             "signal_label": direction,
-            "confluence": f"{round(score / 10, 1)}/10",
+            "confluence": f"{round(confluence['final_confluence_score'] / 10, 1)}/10",
             "trend_label": trend_bias,
             "technical_label": trend_bias,
             "smart_money_label": "COMPRA" if direction == "COMPRA" else "VENDA" if direction == "VENDA" else "NEUTRO",
@@ -708,7 +823,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "stop": primary_stop,
             "target": primary_target,
             "risk_reward": primary_risk_reward,
-            "confluence_score": round(score, 1),
+            "confluence_score": confluence["final_confluence_score"],
             "justification": [
                 f"EMA9={'acima' if ema9 > ema21 else 'abaixo'} da EMA21",
                 f"RSI em {round(rsi14, 2)}",
