@@ -7,6 +7,7 @@ from app.api.routes.radar import router as radar_router
 from app.core.config import API_V1_PREFIX, APP_NAME, APP_VERSION, FRONTEND_ORIGINS
 from app.database import Base, engine
 from app.api.payments import router as payments_router
+from app.api.news import router as news_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -27,6 +28,7 @@ app.include_router(auth_router, prefix=API_V1_PREFIX)
 app.include_router(analyze_router, prefix=API_V1_PREFIX)
 app.include_router(radar_router, prefix=API_V1_PREFIX)
 app.include_router(payments_router)
+app.include_router(news_router, prefix="/api")
 
 @app.get("/")
 def root():
