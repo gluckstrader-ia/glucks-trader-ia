@@ -28,6 +28,8 @@ class AnalyzeRequest(BaseModel):
         "future_us",
         "futuro_us",
         "futuros_us",
+        "commodity",
+        "commodities",
     ]
     timeframe: Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
 
@@ -50,6 +52,8 @@ async def analyze(
             asset_type_normalized = "future_br"
         elif asset_type_normalized in {"future_us", "futuro_us", "futuros_us"}:
             asset_type_normalized = "future_us"
+        elif asset_type_normalized in {"commodity", "commodities"}:
+            asset_type_normalized = "commodity"
 
         return analyze_asset(
             asset=payload.asset,

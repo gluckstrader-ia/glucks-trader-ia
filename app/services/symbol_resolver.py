@@ -10,7 +10,7 @@ def get_twelve_data_symbol(asset: str) -> str:
         "USDCHF", "NZDUSD", "EURJPY", "GBPJPY", "EURGBP",
         "EURAUD", "EURCAD", "GBPCHF", "GBPAUD", "AUDJPY",
         "CADJPY", "CHFJPY", "AUDCAD", "AUDCHF", "NZDJPY",
-        "XAUUSD",
+        "XAUUSD", "USDBRL",
     }
 
     if asset in forex_pairs:
@@ -26,8 +26,25 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
     if asset_type == "forex":
         forex_map = {
             "XAUUSD": "GC=F",
+            "USDBRL": "BRL=X",
         }
         return forex_map.get(asset, f"{asset}=X")
+
+    # COMMODITIES
+    if asset_type in {"commodity", "commodities"}:
+        commodity_map = {
+            "XAU": "GC=F",
+            "XAUUSD": "GC=F",
+            "XAG": "SI=F",
+            "XAGUSD": "SI=F",
+            "WTI": "CL=F",
+            "BRENT": "BZ=F",
+            "NG": "NG=F",
+            "SOJA": "ZS=F",
+            "MILHO": "ZC=F",
+            "CAFE": "KC=F",
+        }
+        return commodity_map.get(asset, asset)
 
     # CRYPTO
     if asset_type == "crypto":
@@ -45,14 +62,17 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
             "SPX": "^GSPC",
             "SP500": "^GSPC",
             "S&P500": "^GSPC",
-            "NASDAQ": "^IXIC",
-            "NDX": "^NDX",
-            "DJI": "^DJI",
-            "DOWJONES": "^DJI",
-            "RUSSELL": "^RUT",
-            "VIX": "^VIX",
             "IBOV": "^BVSP",
             "IBOVESPA": "^BVSP",
+            "NDX": "^NDX",
+            "NASDAQ": "^IXIC",
+            "DJI": "^DJI",
+            "DOWJONES": "^DJI",
+            "DAX": "^GDAXI",
+            "JP225": "^N225",
+            "NIKKEI": "^N225",
+            "RUSSELL": "^RUT",
+            "VIX": "^VIX",
         }
         return index_map.get(asset, asset)
 
@@ -81,17 +101,12 @@ def get_yfinance_symbol(asset: str, asset_type: str) -> str:
     # FUTUROS US
     if asset_type in {"future_us", "futuro_us", "futuros_us"}:
         future_us_map = {
-            # Mini Ouro / Micro Gold
             "NGCJ": "MGC=F",
             "MGC": "MGC=F",
             "MGC1!": "MGC=F",
-
-            # Mini Nasdaq / Nasdaq future
             "MNQ": "NQ=F",
             "NQ": "NQ=F",
             "MNQ1!": "NQ=F",
-
-            # Aliases extras úteis
             "ES": "ES=F",
             "ES1!": "ES=F",
             "CL": "CL=F",
