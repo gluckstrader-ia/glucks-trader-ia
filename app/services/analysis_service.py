@@ -37,7 +37,6 @@ def get_instrument_config(asset: str, asset_type: str, timeframe: str) -> Dict[s
     asset = str(asset).upper().strip()
     asset_type = str(asset_type).lower().strip()
 
-    # padrão
     config = {
         "tick_size": 0.01,
         "price_decimals": 2,
@@ -49,10 +48,8 @@ def get_instrument_config(asset: str, asset_type: str, timeframe: str) -> Dict[s
         "max_stop_distance": None,
     }
 
-    # Futuros BR
     if asset_type == "future_br":
         if asset == "WIN":
-            # Mini índice trabalha em steps de 5 pontos
             config.update({
                 "tick_size": 5.0,
                 "price_decimals": 0,
@@ -79,7 +76,6 @@ def get_instrument_config(asset: str, asset_type: str, timeframe: str) -> Dict[s
                 config["max_stop_distance"] = 600.0
 
         elif asset == "WDO":
-            # Mini dólar normalmente anda em meio ponto
             config.update({
                 "tick_size": 0.5,
                 "price_decimals": 1,
@@ -140,6 +136,7 @@ def determine_direction(
     sma50: float,
     ema9: float,
     rsi: float,
+    atr: float = 0.0,
 ) -> Dict[str, Any]:
     bullish_points = 0
     bearish_points = 0
@@ -164,29 +161,70 @@ def determine_direction(
     elif rsi <= 45:
         bearish_points += 1
 
-    if bullish_points >= 3:
+    ema21_proxy = sma20 if sma20 and sma20 != 0 else close
+
+    trend_delta_1 = ((close - sma20) / sma20 * 100) if sma20 else 0.0
+    trend_delta_2 = ((sma20 - sma50) / sma50 * 100) if sma50 else 0.0
+    ema_delta = ((ema9 - ema21_proxy) / ema21_proxy * 100) if ema21_proxy else 0.0
+    atr_pct = ((atr / close) * 100) if close and atr else 0.0
+
+    bullish_strength = 0.0
+    bearish_strength = 0.0
+
+    if trend_delta_1 > 0:
+        bullish_strength += min(abs(trend_delta_1) * 18, 12)
+    else:
+        bearish_strength += min(abs(trend_delta_1) * 18, 12)
+
+    if trend_delta_2 > 0:
+        bullish_strength += min(abs(trend_delta_2) * 20, 12)
+    else:
+        bearish_strength += min(abs(trend_delta_2) * 20, 12)
+
+    if ema_delta > 0:
+        bullish_strength += min(abs(ema_delta) * 30, 14)
+    else:
+        bearish_strength += min(abs(ema_delta) * 30, 14)
+
+    if rsi > 50:
+        bullish_strength += min((rsi - 50) * 1.1, 14)
+    elif rsi < 50:
+        bearish_strength += min((50 - rsi) * 1.1, 14)
+
+    volatility_penalty = min(max(atr_pct - 1.2, 0) * 4.5, 8)
+
+    bullish_raw = 48 + bullish_points * 6 + bullish_strength - volatility_penalty
+    bearish_raw = 48 + bearish_points * 6 + bearish_strength - volatility_penalty
+
+    bullish_raw = max(5, min(98, bullish_raw))
+    bearish_raw = max(5, min(98, bearish_raw))
+
+    if bullish_points >= 3 and bullish_raw >= bearish_raw:
         direction = "COMPRA"
-        score = min(95, 55 + bullish_points * 10)
-        confidence = min(95, 55 + bullish_points * 10)
-        confidence_label = "ALTA" if bullish_points >= 4 else "MÉDIA"
-    elif bearish_points >= 3:
+        score = round(bullish_raw, 1)
+        confidence = round(bullish_raw, 1)
+        confidence_label = "ALTA" if confidence >= 80 else "MÉDIA" if confidence >= 65 else "BAIXA"
+    elif bearish_points >= 3 and bearish_raw > bullish_raw:
         direction = "VENDA"
-        score = min(95, 55 + bearish_points * 10)
-        confidence = min(95, 55 + bearish_points * 10)
-        confidence_label = "ALTA" if bearish_points >= 4 else "MÉDIA"
+        score = round(bearish_raw, 1)
+        confidence = round(bearish_raw, 1)
+        confidence_label = "ALTA" if confidence >= 80 else "MÉDIA" if confidence >= 65 else "BAIXA"
     else:
         direction = "NEUTRO"
-        score = 50
-        confidence = 50
+        balance = 55 - abs(bullish_raw - bearish_raw) * 0.6
+        score = round(max(35, min(60, balance)), 1)
+        confidence = round(max(35, min(60, balance)), 1)
         confidence_label = "BAIXA"
 
     return {
         "direction": direction,
-        "score": int(score),
-        "confidence": int(confidence),
+        "score": score,
+        "confidence": confidence,
         "confidence_label": confidence_label,
         "bullish_points": bullish_points,
         "bearish_points": bearish_points,
+        "bullish_raw": round(bullish_raw, 1),
+        "bearish_raw": round(bearish_raw, 1),
     }
 
 
@@ -206,10 +244,8 @@ def calculate_trade_levels(
     if atr is None or pd.isna(atr) or atr <= 0:
         atr = close * 0.003
 
-    # aplica multiplicador do instrumento
     stop_distance = atr * config["atr_multiplier_stop"]
 
-    # clamp para evitar níveis absurdos
     min_stop = config["min_stop_distance"]
     max_stop = config["max_stop_distance"]
 
@@ -218,7 +254,6 @@ def calculate_trade_levels(
     if max_stop is not None:
         stop_distance = min(stop_distance, max_stop)
 
-    # arredonda a distância para o tick
     stop_distance = round_to_tick(stop_distance, tick_size, decimals)
 
     rr1 = config["target_rr_1"]
@@ -268,8 +303,6 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     asset = str(asset).upper().strip()
     asset_type = str(asset_type).lower().strip()
 
-    # Mantém o comportamento antigo do EURUSD e demais forex,
-    # exceto XAUUSD, que precisa de tratamento especial.
     if asset_type in {"future_us", "futuro_us", "futuros_us"}:
         provider_symbol = resolve_provider_symbol(asset, asset_type, "yfinance")
     elif asset_type == "forex" and asset == "XAUUSD":
@@ -301,7 +334,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         raise ValueError(
             f"Falha ao carregar dados de mercado para {asset} ({provider_symbol}): {str(e)}"
         )
-    
+
     print("TOTAL DE CANDLES RECEBIDOS:", len(df))
     print(df.tail(10))
 
@@ -359,6 +392,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         sma50=sma50,
         ema9=ema9,
         rsi=rsi14,
+        atr=atr14,
     )
 
     levels = calculate_trade_levels(
@@ -380,6 +414,10 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     direction = signal["direction"]
     score = signal["score"]
     confidence = signal["confidence"]
+
+    tp1_probability = round(max(5, min(97, confidence)), 1)
+    tp2_probability = round(max(20, min(92, confidence * 0.88 - 2.5)), 1)
+    tp3_probability = round(max(12, min(85, confidence * 0.74 - 4.0)), 1)
 
     recent_lows = df["low"].tail(20).nsmallest(min(3, len(df["low"].tail(20)))).tolist()
     recent_highs = df["high"].tail(20).nlargest(min(3, len(df["high"].tail(20)))).tolist()
@@ -434,11 +472,19 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     else:
         zone_label = "Equilíbrio"
 
-    buy_probability = min(95, max(5, score))
-    sell_probability = 100 - buy_probability if direction == "COMPRA" else min(95, max(5, score))
-    if direction == "NEUTRO":
-        buy_probability = 50
-        sell_probability = 50
+    bullish_raw = signal.get("bullish_raw", 50.0)
+    bearish_raw = signal.get("bearish_raw", 50.0)
+
+    if direction == "COMPRA":
+        buy_probability = round(max(5, min(97, bullish_raw)), 1)
+        sell_probability = round(max(3, min(45, 100 - bullish_raw + 8)), 1)
+    elif direction == "VENDA":
+        sell_probability = round(max(5, min(97, bearish_raw)), 1)
+        buy_probability = round(max(3, min(45, 100 - bearish_raw + 8)), 1)
+    else:
+        balance = max(40, min(60, 50 - abs(bullish_raw - bearish_raw) * 0.35))
+        buy_probability = round(balance, 1)
+        sell_probability = round(balance, 1)
 
     smc_bias = "BULLISH" if direction == "COMPRA" else "BEARISH" if direction == "VENDA" else "NEUTRAL"
 
@@ -447,19 +493,19 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         "asset_type": asset_type,
         "timeframe": timeframe,
         "direction": direction,
-        "score": score,
-        "confidence": confidence,
+        "score": round(score, 1),
+        "confidence": round(confidence, 1),
         "entry": entry,
         "stop": stop,
         "target": target,
         "risk_reward": risk_reward,
 
         "modules": {
-            "technical": score,
-            "smc": score - 5 if score >= 5 else score,
+            "technical": round(score, 1),
+            "smc": round(score - 5, 1) if score >= 5 else round(score, 1),
             "harmonic": 52,
-            "wegd": score - 3 if score >= 3 else score,
-            "probabilistic": score,
+            "wegd": round(score - 3, 1) if score >= 3 else round(score, 1),
+            "probabilistic": round(score, 1),
             "timing": 60,
         },
 
@@ -471,10 +517,11 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "smart_money_label": "COMPRA" if direction == "COMPRA" else "VENDA" if direction == "VENDA" else "NEUTRO",
             "tp2": tp2,
             "tp3": tp3,
+            "confidence": round(confidence, 1),
         },
 
         "technical": {
-            "score": score,
+            "score": round(score, 1),
             "buy_signals": buy_signals,
             "sell_signals": sell_signals,
             "neutral_signals": neutral_signals,
@@ -541,8 +588,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "summary": f"WEGD aponta {direction}.",
             "wyckoff": {
                 "phase": "Markup" if direction == "COMPRA" else "Markdown" if direction == "VENDA" else "Range",
-                "progress": score,
-                "confidence": confidence,
+                "progress": round(score, 1),
+                "confidence": round(confidence, 1),
                 "next_phase": "Continuação",
                 "composite_man": "Ativo",
                 "events_confirmed": [],
@@ -553,8 +600,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "elliott": {
                 "current_wave": "3" if direction == "COMPRA" else "C" if direction == "VENDA" else "X",
                 "mode": direction,
-                "progress": score,
-                "confidence": confidence,
+                "progress": round(score, 1),
+                "confidence": round(confidence, 1),
                 "next_wave": "4",
                 "invalidation": stop,
                 "wave_points": [],
@@ -573,7 +620,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
                 "secondary": trend_bias,
                 "minor": trend_bias,
                 "market_phase": "Expansão" if direction != "NEUTRO" else "Lateralização",
-                "market_phase_score": score,
+                "market_phase_score": round(score, 1),
                 "price_volume_confirmation": "Confirmado",
                 "indices_confirmation": "Neutro",
                 "volume_note": "Sem anomalia de volume",
@@ -581,9 +628,9 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         },
 
         "probabilistic": {
-            "win_rate_general": score,
-            "win_rate_long": buy_probability,
-            "win_rate_short": sell_probability,
+            "win_rate_general": round(score, 1),
+            "win_rate_long": round(buy_probability, 1),
+            "win_rate_short": round(sell_probability, 1),
             "historical": {
                 "periods": 100,
                 "return_pct": round(((target - entry) / entry) * 100, 2) if entry else 0,
@@ -598,9 +645,9 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
                 "high": round(target, 6),
             },
             "scenarios": {
-                "bullish": buy_probability,
-                "neutral": max(0, 100 - max(buy_probability, sell_probability)),
-                "bearish": sell_probability,
+                "bullish": round(buy_probability, 1),
+                "neutral": round(max(0, 100 - max(buy_probability, sell_probability)), 1),
+                "bearish": round(sell_probability, 1),
             },
             "seasonality": [],
             "risk_metrics": {
@@ -624,12 +671,12 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         "final_signal": {
             "direction": direction,
             "strength": "FORTE" if score >= 75 else "MODERADA" if score >= 60 else "FRACA",
-            "confidence": confidence,
+            "confidence": round(confidence, 1),
             "entry": entry,
             "stop": stop,
             "target": target,
             "risk_reward": risk_reward,
-            "confluence_score": score,
+            "confluence_score": round(score, 1),
             "justification": [
                 f"EMA9={'acima' if ema9 > ema21 else 'abaixo'} da EMA21",
                 f"RSI em {round(rsi14, 2)}",
@@ -640,25 +687,25 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
 
         "scenarios": {
             "buy": {
-                "probability": buy_probability if direction != "VENDA" else max(100 - score, 5),
+                "probability": round(buy_probability, 1),
                 "entry_trigger": entry,
                 "entry_reason": "Confirmação técnica",
                 "stop": stop,
                 "targets": [
-                    {"label": "TP1", "price": target, "probability": min(95, score), "rr": f"1:{risk_reward}"},
-                    {"label": "TP2", "price": tp2, "probability": max(40, score - 10), "rr": "1:1.6"},
-                    {"label": "TP3", "price": tp3, "probability": max(25, score - 20), "rr": "1:2.2"},
+                    {"label": "TP1", "price": target, "probability": tp1_probability, "rr": f"1:{risk_reward}"},
+                    {"label": "TP2", "price": tp2, "probability": tp2_probability, "rr": "1:1.6"},
+                    {"label": "TP3", "price": tp3, "probability": tp3_probability, "rr": "1:2.2"},
                 ],
             },
             "sell": {
-                "probability": sell_probability if direction != "COMPRA" else max(100 - score, 5),
+                "probability": round(sell_probability, 1),
                 "entry_trigger": entry,
                 "entry_reason": "Confirmação técnica",
                 "stop": stop,
                 "targets": [
-                    {"label": "TP1", "price": target, "probability": min(95, score), "rr": f"1:{risk_reward}"},
-                    {"label": "TP2", "price": tp2, "probability": max(40, score - 10), "rr": "1:1.6"},
-                    {"label": "TP3", "price": tp3, "probability": max(25, score - 20), "rr": "1:2.2"},
+                    {"label": "TP1", "price": target, "probability": tp1_probability, "rr": f"1:{risk_reward}"},
+                    {"label": "TP2", "price": tp2, "probability": tp2_probability, "rr": "1:1.6"},
+                    {"label": "TP3", "price": tp3, "probability": tp3_probability, "rr": "1:2.2"},
                 ],
             },
         },
@@ -694,6 +741,6 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "label": "Ganância" if direction == "COMPRA" else "Medo" if direction == "VENDA" else "Neutro",
             "delta_vs_yesterday": 2,
             "avg_7d": 54,
-            "history": [42, 45, 48, 50, 53, 55, min(95, max(5, score))],
+            "history": [42, 45, 48, 50, 53, 55, min(95, max(5, round(score, 1)))],
         },
     }
