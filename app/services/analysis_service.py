@@ -377,6 +377,68 @@ def apply_signal_filter(
         "reasons": reasons,
     }
 
+def calculate_scenario_probabilities(
+    direction: str,
+    bullish_raw: float,
+    bearish_raw: float,
+    confluence_score: float,
+    atr: float,
+    close: float,
+) -> Dict[str, float]:
+    atr_pct = (atr / close) * 100 if close else 0.0
+
+    buy_probability = 50.0
+    sell_probability = 50.0
+
+    # Base pelo score bruto direcional
+    buy_probability += (bullish_raw - 50) * 0.55
+    sell_probability += (bearish_raw - 50) * 0.55
+
+    # Ajuste pela confluência real
+    confluence_boost = (confluence_score - 50) * 0.45
+    if direction == "COMPRA":
+        buy_probability += confluence_boost
+        sell_probability -= confluence_boost * 0.65
+    elif direction == "VENDA":
+        sell_probability += confluence_boost
+        buy_probability -= confluence_boost * 0.65
+    else:
+        buy_probability -= 4
+        sell_probability -= 4
+
+    # Penalidade por volatilidade excessiva
+    if atr_pct > 2.8:
+        buy_probability -= 10
+        sell_probability -= 10
+    elif atr_pct > 2.0:
+        buy_probability -= 6
+        sell_probability -= 6
+    elif atr_pct > 1.5:
+        buy_probability -= 3
+        sell_probability -= 3
+
+    # Faixa de segurança
+    buy_probability = max(3, min(97, buy_probability))
+    sell_probability = max(3, min(97, sell_probability))
+
+    # Se as probabilidades ficarem muito próximas, reforça neutralidade
+    diff = abs(buy_probability - sell_probability)
+    if diff < 6:
+        avg = (buy_probability + sell_probability) / 2
+        buy_probability = max(40, min(60, avg))
+        sell_probability = max(40, min(60, avg))
+
+    neutral_probability = max(
+        0.0,
+        min(100.0, 100.0 - ((buy_probability + sell_probability) / 2)),
+    )
+
+    return {
+        "buy_probability": round(buy_probability, 1),
+        "sell_probability": round(sell_probability, 1),
+        "neutral_probability": round(neutral_probability, 1),
+    }
+
 def calculate_trade_levels(
     direction: str,
     close: float,
@@ -583,25 +645,6 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     bullish_raw = signal.get("bullish_raw", 50.0)
     bearish_raw = signal.get("bearish_raw", 50.0)
 
-    if direction == "COMPRA":
-        buy_probability = round(max(5, min(97, bullish_raw)), 1)
-        sell_probability = round(max(3, min(45, 100 - bullish_raw + 8)), 1)
-    elif direction == "VENDA":
-        sell_probability = round(max(5, min(97, bearish_raw)), 1)
-        buy_probability = round(max(3, min(45, 100 - bearish_raw + 8)), 1)
-    else:
-        balance = max(40, min(60, 50 - abs(bullish_raw - bearish_raw) * 0.35))
-        buy_probability = round(balance, 1)
-        sell_probability = round(balance, 1)
-
-    buy_tp1_probability = round(max(5, min(97, buy_probability)), 1)
-    buy_tp2_probability = round(max(5, min(92, buy_probability * 0.84)), 1)
-    buy_tp3_probability = round(max(5, min(85, buy_probability * 0.68)), 1)
-
-    sell_tp1_probability = round(max(5, min(97, sell_probability)), 1)
-    sell_tp2_probability = round(max(5, min(92, sell_probability * 0.84)), 1)
-    sell_tp3_probability = round(max(5, min(85, sell_probability * 0.68)), 1)
-
     recent_lows = df["low"].tail(20).nsmallest(min(3, len(df["low"].tail(20)))).tolist()
     recent_highs = df["high"].tail(20).nlargest(min(3, len(df["high"].tail(20)))).tolist()
 
@@ -636,9 +679,6 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     else:
         neutral_signals += 1
 
-    trend_bias = "ALTA" if direction == "COMPRA" else "BAIXA" if direction == "VENDA" else "NEUTRO"
-    ema_trend = "ALTA" if ema9 > ema21 else "BAIXA" if ema9 < ema21 else "NEUTRO"
-
     nearest_support = max([s for s in supports if s <= close], default=supports[0] if supports else close)
     nearest_resistance = min([r for r in resistances if r >= close], default=resistances[-1] if resistances else close)
 
@@ -656,7 +696,6 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     else:
         zone_label = "Equilíbrio"
 
-
     confluence = calculate_module_confluence(
         close=close,
         ema9=ema9,
@@ -667,7 +706,30 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         atr=atr14,
         direction=direction,
         zone_position_pct=zone_position_pct,
-    ) 
+    )
+
+    probability_map = calculate_scenario_probabilities(
+        direction=direction,
+        bullish_raw=bullish_raw,
+        bearish_raw=bearish_raw,
+        confluence_score=confluence["final_confluence_score"],
+        atr=atr14,
+        close=close,
+    )
+
+    buy_probability = probability_map["buy_probability"]
+    sell_probability = probability_map["sell_probability"]
+    neutral_probability = probability_map["neutral_probability"]
+
+    buy_tp1_probability = round(max(5, min(97, buy_probability)), 1)
+    buy_tp2_probability = round(max(5, min(92, buy_probability - 9)), 1)
+    buy_tp3_probability = round(max(5, min(85, buy_probability - 18)), 1)
+
+    sell_tp1_probability = round(max(5, min(97, sell_probability)), 1)
+    sell_tp2_probability = round(max(5, min(92, sell_probability - 9)), 1)
+    sell_tp3_probability = round(max(5, min(85, sell_probability - 18)), 1)
+
+    confidence = round((confidence * 0.55) + (confluence["final_confluence_score"] * 0.45), 1)
 
     filter_result = apply_signal_filter(
         direction=direction,
@@ -676,12 +738,14 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         close=close,
         buy_probability=buy_probability,
         sell_probability=sell_probability,
-    )  
+    )
 
     if filter_result["veto"]:
         direction = "NEUTRO"
-        confidence = max(30, min(55, confidence - 15)) 
+        confidence = max(30, min(55, confidence - 15))
 
+    trend_bias = "ALTA" if direction == "COMPRA" else "BAIXA" if direction == "VENDA" else "NEUTRO"
+    ema_trend = "ALTA" if ema9 > ema21 else "BAIXA" if ema9 < ema21 else "NEUTRO"
     smc_bias = "BULLISH" if direction == "COMPRA" else "BEARISH" if direction == "VENDA" else "NEUTRAL"
 
     primary_entry = buy_entry if direction == "COMPRA" else sell_entry if direction == "VENDA" else close
@@ -849,7 +913,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             },
             "scenarios": {
                 "bullish": round(buy_probability, 1),
-                "neutral": round(max(0, 100 - max(buy_probability, sell_probability)), 1),
+                "neutral": round(neutral_probability, 1),
                 "bearish": round(sell_probability, 1),
             },
             "seasonality": [],
