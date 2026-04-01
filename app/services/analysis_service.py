@@ -226,6 +226,9 @@ def determine_direction(
         "confidence_label": confidence_label,
         "bullish_raw": round(bullish_score, 1),
         "bearish_raw": round(bearish_score, 1),
+
+        "bullish_points": round(max(0, bullish_score - 50) / 10),
+        "bearish_points": round(max(0, bearish_score - 50) / 10),
     }
 
 
