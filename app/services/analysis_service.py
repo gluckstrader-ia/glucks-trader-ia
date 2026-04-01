@@ -395,8 +395,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         atr=atr14,
     )
 
-    levels = calculate_trade_levels(
-        direction=signal["direction"],
+    buy_levels = calculate_trade_levels(
+        direction="COMPRA",
         close=close,
         atr=atr14,
         asset=asset,
@@ -404,20 +404,54 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         timeframe=timeframe,
     )
 
-    entry = levels["entry"]
-    stop = levels["stop"]
-    target = levels["target"]
-    tp2 = levels["tp2"]
-    tp3 = levels["tp3"]
-    risk_reward = levels["risk_reward"]
+    sell_levels = calculate_trade_levels(
+        direction="VENDA",
+        close=close,
+        atr=atr14,
+        asset=asset,
+        asset_type=asset_type,
+        timeframe=timeframe,
+    )
+
+    buy_entry = buy_levels["entry"]
+    buy_stop = buy_levels["stop"]
+    buy_tp1 = buy_levels["target"]
+    buy_tp2 = buy_levels["tp2"]
+    buy_tp3 = buy_levels["tp3"]
+    buy_rr = buy_levels["risk_reward"]
+
+    sell_entry = sell_levels["entry"]
+    sell_stop = sell_levels["stop"]
+    sell_tp1 = sell_levels["target"]
+    sell_tp2 = sell_levels["tp2"]
+    sell_tp3 = sell_levels["tp3"]
+    sell_rr = sell_levels["risk_reward"]
 
     direction = signal["direction"]
     score = signal["score"]
     confidence = signal["confidence"]
 
-    tp1_probability = round(max(5, min(97, confidence)), 1)
-    tp2_probability = round(max(20, min(92, confidence * 0.88 - 2.5)), 1)
-    tp3_probability = round(max(12, min(85, confidence * 0.74 - 4.0)), 1)
+    bullish_raw = signal.get("bullish_raw", 50.0)
+    bearish_raw = signal.get("bearish_raw", 50.0)
+
+    if direction == "COMPRA":
+        buy_probability = round(max(5, min(97, bullish_raw)), 1)
+        sell_probability = round(max(3, min(45, 100 - bullish_raw + 8)), 1)
+    elif direction == "VENDA":
+        sell_probability = round(max(5, min(97, bearish_raw)), 1)
+        buy_probability = round(max(3, min(45, 100 - bearish_raw + 8)), 1)
+    else:
+        balance = max(40, min(60, 50 - abs(bullish_raw - bearish_raw) * 0.35))
+        buy_probability = round(balance, 1)
+        sell_probability = round(balance, 1)
+
+    buy_tp1_probability = round(max(5, min(97, buy_probability)), 1)
+    buy_tp2_probability = round(max(5, min(92, buy_probability * 0.84)), 1)
+    buy_tp3_probability = round(max(5, min(85, buy_probability * 0.68)), 1)
+
+    sell_tp1_probability = round(max(5, min(97, sell_probability)), 1)
+    sell_tp2_probability = round(max(5, min(92, sell_probability * 0.84)), 1)
+    sell_tp3_probability = round(max(5, min(85, sell_probability * 0.68)), 1)
 
     recent_lows = df["low"].tail(20).nsmallest(min(3, len(df["low"].tail(20)))).tolist()
     recent_highs = df["high"].tail(20).nlargest(min(3, len(df["high"].tail(20)))).tolist()
@@ -461,7 +495,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
 
     range_min = min(df["low"].tail(min(50, len(df))))
     range_max = max(df["high"].tail(min(50, len(df))))
-    zone_position_pct = 50
+    zone_position_pct = 50.0
+
     if range_max > range_min:
         zone_position_pct = ((close - range_min) / (range_max - range_min)) * 100
 
@@ -472,21 +507,14 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     else:
         zone_label = "Equilíbrio"
 
-    bullish_raw = signal.get("bullish_raw", 50.0)
-    bearish_raw = signal.get("bearish_raw", 50.0)
-
-    if direction == "COMPRA":
-        buy_probability = round(max(5, min(97, bullish_raw)), 1)
-        sell_probability = round(max(3, min(45, 100 - bullish_raw + 8)), 1)
-    elif direction == "VENDA":
-        sell_probability = round(max(5, min(97, bearish_raw)), 1)
-        buy_probability = round(max(3, min(45, 100 - bearish_raw + 8)), 1)
-    else:
-        balance = max(40, min(60, 50 - abs(bullish_raw - bearish_raw) * 0.35))
-        buy_probability = round(balance, 1)
-        sell_probability = round(balance, 1)
-
     smc_bias = "BULLISH" if direction == "COMPRA" else "BEARISH" if direction == "VENDA" else "NEUTRAL"
+
+    primary_entry = buy_entry if direction == "COMPRA" else sell_entry if direction == "VENDA" else close
+    primary_stop = buy_stop if direction == "COMPRA" else sell_stop if direction == "VENDA" else close
+    primary_target = buy_tp1 if direction == "COMPRA" else sell_tp1 if direction == "VENDA" else close
+    primary_tp2 = buy_tp2 if direction == "COMPRA" else sell_tp2 if direction == "VENDA" else close
+    primary_tp3 = buy_tp3 if direction == "COMPRA" else sell_tp3 if direction == "VENDA" else close
+    primary_risk_reward = buy_rr if direction == "COMPRA" else sell_rr if direction == "VENDA" else 0.0
 
     return {
         "asset": asset.upper(),
@@ -495,10 +523,10 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         "direction": direction,
         "score": round(score, 1),
         "confidence": round(confidence, 1),
-        "entry": entry,
-        "stop": stop,
-        "target": target,
-        "risk_reward": risk_reward,
+        "entry": primary_entry,
+        "stop": primary_stop,
+        "target": primary_target,
+        "risk_reward": primary_risk_reward,
 
         "modules": {
             "technical": round(score, 1),
@@ -515,8 +543,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "trend_label": trend_bias,
             "technical_label": trend_bias,
             "smart_money_label": "COMPRA" if direction == "COMPRA" else "VENDA" if direction == "VENDA" else "NEUTRO",
-            "tp2": tp2,
-            "tp3": tp3,
+            "tp2": primary_tp2,
+            "tp3": primary_tp3,
             "confidence": round(confidence, 1),
         },
 
@@ -603,7 +631,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
                 "progress": round(score, 1),
                 "confidence": round(confidence, 1),
                 "next_wave": "4",
-                "invalidation": stop,
+                "invalidation": primary_stop,
                 "wave_points": [],
             },
             "gann": {
@@ -633,16 +661,16 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "win_rate_short": round(sell_probability, 1),
             "historical": {
                 "periods": 100,
-                "return_pct": round(((target - entry) / entry) * 100, 2) if entry else 0,
+                "return_pct": round(((primary_target - primary_entry) / primary_entry) * 100, 2) if primary_entry else 0,
                 "volatility_pct": round((atr14 / close) * 100, 2) if close else 0,
                 "sharpe": 1.2,
                 "max_drawdown_pct": 3.8,
             },
             "monte_carlo": {
                 "confidence_level": 95,
-                "low": round(stop, 6),
+                "low": round(primary_stop, 6),
                 "mid": round(close, 6),
-                "high": round(target, 6),
+                "high": round(primary_target, 6),
             },
             "scenarios": {
                 "bullish": round(buy_probability, 1),
@@ -672,10 +700,10 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "direction": direction,
             "strength": "FORTE" if score >= 75 else "MODERADA" if score >= 60 else "FRACA",
             "confidence": round(confidence, 1),
-            "entry": entry,
-            "stop": stop,
-            "target": target,
-            "risk_reward": risk_reward,
+            "entry": primary_entry,
+            "stop": primary_stop,
+            "target": primary_target,
+            "risk_reward": primary_risk_reward,
             "confluence_score": round(score, 1),
             "justification": [
                 f"EMA9={'acima' if ema9 > ema21 else 'abaixo'} da EMA21",
@@ -688,24 +716,24 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         "scenarios": {
             "buy": {
                 "probability": round(buy_probability, 1),
-                "entry_trigger": entry,
+                "entry_trigger": buy_entry,
                 "entry_reason": "Confirmação técnica",
-                "stop": stop,
+                "stop": buy_stop,
                 "targets": [
-                    {"label": "TP1", "price": target, "probability": tp1_probability, "rr": f"1:{risk_reward}"},
-                    {"label": "TP2", "price": tp2, "probability": tp2_probability, "rr": "1:1.6"},
-                    {"label": "TP3", "price": tp3, "probability": tp3_probability, "rr": "1:2.2"},
+                    {"label": "TP1", "price": buy_tp1, "probability": buy_tp1_probability, "rr": f"1:{buy_rr}"},
+                    {"label": "TP2", "price": buy_tp2, "probability": buy_tp2_probability, "rr": "1:1.6"},
+                    {"label": "TP3", "price": buy_tp3, "probability": buy_tp3_probability, "rr": "1:2.2"},
                 ],
             },
             "sell": {
                 "probability": round(sell_probability, 1),
-                "entry_trigger": entry,
+                "entry_trigger": sell_entry,
                 "entry_reason": "Confirmação técnica",
-                "stop": stop,
+                "stop": sell_stop,
                 "targets": [
-                    {"label": "TP1", "price": target, "probability": tp1_probability, "rr": f"1:{risk_reward}"},
-                    {"label": "TP2", "price": tp2, "probability": tp2_probability, "rr": "1:1.6"},
-                    {"label": "TP3", "price": tp3, "probability": tp3_probability, "rr": "1:2.2"},
+                    {"label": "TP1", "price": sell_tp1, "probability": sell_tp1_probability, "rr": f"1:{sell_rr}"},
+                    {"label": "TP2", "price": sell_tp2, "probability": sell_tp2_probability, "rr": "1:1.6"},
+                    {"label": "TP3", "price": sell_tp3, "probability": sell_tp3_probability, "rr": "1:2.2"},
                 ],
             },
         },
