@@ -334,6 +334,49 @@ def calculate_module_confluence(
         "final_confluence_score": final_confluence_score,
     }
 
+def apply_signal_filter(
+    direction: str,
+    confluence_score: float,
+    atr: float,
+    close: float,
+    buy_probability: float,
+    sell_probability: float,
+) -> Dict[str, Any]:
+
+    atr_pct = (atr / close) * 100 if close else 0
+
+    reasons = []
+    veto = False
+
+    # 1. Baixa confluência
+    if confluence_score < 55:
+        veto = True
+        reasons.append("Baixa confluência entre módulos")
+
+    # 2. Mercado lateral (probabilidades próximas)
+    if abs(buy_probability - sell_probability) < 8:
+        veto = True
+        reasons.append("Mercado lateral / indecisão")
+
+    # 3. Volatilidade excessiva
+    if atr_pct > 2.8:
+        veto = True
+        reasons.append("Alta volatilidade")
+
+    # 4. Probabilidade fraca
+    if direction == "COMPRA" and buy_probability < 55:
+        veto = True
+        reasons.append("Probabilidade de compra baixa")
+
+    if direction == "VENDA" and sell_probability < 55:
+        veto = True
+        reasons.append("Probabilidade de venda baixa")
+
+    return {
+        "veto": veto,
+        "reasons": reasons,
+    }
+
 def calculate_trade_levels(
     direction: str,
     close: float,
@@ -624,7 +667,20 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         atr=atr14,
         direction=direction,
         zone_position_pct=zone_position_pct,
-    )    
+    ) 
+
+    filter_result = apply_signal_filter(
+        direction=direction,
+        confluence_score=confluence["final_confluence_score"],
+        atr=atr14,
+        close=close,
+        buy_probability=buy_probability,
+        sell_probability=sell_probability,
+    )  
+
+    if filter_result["veto"]:
+        direction = "NEUTRO"
+        confidence = max(30, min(55, confidence - 15)) 
 
     smc_bias = "BULLISH" if direction == "COMPRA" else "BEARISH" if direction == "VENDA" else "NEUTRAL"
 
@@ -824,6 +880,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "target": primary_target,
             "risk_reward": primary_risk_reward,
             "confluence_score": confluence["final_confluence_score"],
+            "filter_applied": filter_result["veto"],
+            "filter_reasons": filter_result["reasons"],
             "justification": [
                 f"EMA9={'acima' if ema9 > ema21 else 'abaixo'} da EMA21",
                 f"RSI em {round(rsi14, 2)}",
