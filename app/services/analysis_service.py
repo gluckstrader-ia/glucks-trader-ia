@@ -138,93 +138,94 @@ def determine_direction(
     rsi: float,
     atr: float = 0.0,
 ) -> Dict[str, Any]:
-    bullish_points = 0
-    bearish_points = 0
 
-    if close > sma20:
-        bullish_points += 1
-    else:
-        bearish_points += 1
+    # =========================
+    # 1. TREND SCORE (peso alto)
+    # =========================
+    trend_score = 0
 
     if sma20 > sma50:
-        bullish_points += 1
+        trend_score += 25
     elif sma20 < sma50:
-        bearish_points += 1
+        trend_score -= 25
 
     if close > ema9:
-        bullish_points += 1
+        trend_score += 15
     else:
-        bearish_points += 1
+        trend_score -= 15
 
-    if rsi >= 55:
-        bullish_points += 1
-    elif rsi <= 45:
-        bearish_points += 1
+    # =========================
+    # 2. MOMENTUM (RSI)
+    # =========================
+    momentum_score = 0
 
-    ema21_proxy = sma20 if sma20 and sma20 != 0 else close
-
-    trend_delta_1 = ((close - sma20) / sma20 * 100) if sma20 else 0.0
-    trend_delta_2 = ((sma20 - sma50) / sma50 * 100) if sma50 else 0.0
-    ema_delta = ((ema9 - ema21_proxy) / ema21_proxy * 100) if ema21_proxy else 0.0
-    atr_pct = ((atr / close) * 100) if close and atr else 0.0
-
-    bullish_strength = 0.0
-    bearish_strength = 0.0
-
-    if trend_delta_1 > 0:
-        bullish_strength += min(abs(trend_delta_1) * 18, 12)
+    if rsi >= 60:
+        momentum_score += 20
+    elif rsi <= 40:
+        momentum_score -= 20
     else:
-        bearish_strength += min(abs(trend_delta_1) * 18, 12)
+        momentum_score += (rsi - 50) * 0.8  # zona neutra suavizada
 
-    if trend_delta_2 > 0:
-        bullish_strength += min(abs(trend_delta_2) * 20, 12)
+    # =========================
+    # 3. PRICE POSITION
+    # =========================
+    position_score = 0
+
+    if close > sma20:
+        position_score += 10
     else:
-        bearish_strength += min(abs(trend_delta_2) * 20, 12)
+        position_score -= 10
 
-    if ema_delta > 0:
-        bullish_strength += min(abs(ema_delta) * 30, 14)
-    else:
-        bearish_strength += min(abs(ema_delta) * 30, 14)
+    # =========================
+    # 4. VOLATILITY FILTER (ATR)
+    # =========================
+    volatility_penalty = 0
+    atr_pct = (atr / close) * 100 if close else 0
 
-    if rsi > 50:
-        bullish_strength += min((rsi - 50) * 1.1, 14)
-    elif rsi < 50:
-        bearish_strength += min((50 - rsi) * 1.1, 14)
+    if atr_pct > 2.5:
+        volatility_penalty = 10
+    elif atr_pct > 1.5:
+        volatility_penalty = 5
 
-    volatility_penalty = min(max(atr_pct - 1.2, 0) * 4.5, 8)
+    # =========================
+    # SCORE FINAL
+    # =========================
+    raw_score = trend_score + momentum_score + position_score - volatility_penalty
 
-    bullish_raw = 48 + bullish_points * 6 + bullish_strength - volatility_penalty
-    bearish_raw = 48 + bearish_points * 6 + bearish_strength - volatility_penalty
+    # normalização
+    bullish_score = max(5, min(98, 50 + raw_score))
+    bearish_score = max(5, min(98, 50 - raw_score))
 
-    bullish_raw = max(5, min(98, bullish_raw))
-    bearish_raw = max(5, min(98, bearish_raw))
+    # =========================
+    # FILTRO DE NEUTRALIDADE (MUITO IMPORTANTE)
+    # =========================
+    diff = abs(bullish_score - bearish_score)
 
-    if bullish_points >= 3 and bullish_raw >= bearish_raw:
-        direction = "COMPRA"
-        score = round(bullish_raw, 1)
-        confidence = round(bullish_raw, 1)
-        confidence_label = "ALTA" if confidence >= 80 else "MÉDIA" if confidence >= 65 else "BAIXA"
-    elif bearish_points >= 3 and bearish_raw > bullish_raw:
-        direction = "VENDA"
-        score = round(bearish_raw, 1)
-        confidence = round(bearish_raw, 1)
-        confidence_label = "ALTA" if confidence >= 80 else "MÉDIA" if confidence >= 65 else "BAIXA"
-    else:
+    if diff < 8:
         direction = "NEUTRO"
-        balance = 55 - abs(bullish_raw - bearish_raw) * 0.6
-        score = round(max(35, min(60, balance)), 1)
-        confidence = round(max(35, min(60, balance)), 1)
+        score = round(50 - (8 - diff), 1)
+        confidence = score
         confidence_label = "BAIXA"
+
+    elif bullish_score > bearish_score:
+        direction = "COMPRA"
+        score = round(bullish_score, 1)
+        confidence = score
+        confidence_label = "ALTA" if score >= 80 else "MÉDIA" if score >= 65 else "BAIXA"
+
+    else:
+        direction = "VENDA"
+        score = round(bearish_score, 1)
+        confidence = score
+        confidence_label = "ALTA" if score >= 80 else "MÉDIA" if score >= 65 else "BAIXA"
 
     return {
         "direction": direction,
         "score": score,
         "confidence": confidence,
         "confidence_label": confidence_label,
-        "bullish_points": bullish_points,
-        "bearish_points": bearish_points,
-        "bullish_raw": round(bullish_raw, 1),
-        "bearish_raw": round(bearish_raw, 1),
+        "bullish_raw": round(bullish_score, 1),
+        "bearish_raw": round(bearish_score, 1),
     }
 
 
