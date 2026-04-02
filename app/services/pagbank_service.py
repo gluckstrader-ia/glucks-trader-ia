@@ -49,9 +49,8 @@ def build_checkout_payload(
 ) -> Dict[str, Any]:
     amount = plan_amount_cents(plan)
 
-    payment_notification_url = f"{backend_base_url}/api/webhook/pagbank"
-    checkout_notification_url = f"{backend_base_url}/api/webhook/pagbank"
-    redirect_url = f"{frontend_base_url}/premium?checkout=success&plan={plan}"
+    payment_notification_url = f"{backend_base_url.rstrip('/')}/api/webhook/pagbank"
+    checkout_notification_url = f"{backend_base_url.rstrip('/')}/api/webhook/pagbank"
 
     return {
         "reference_id": reference_id,
@@ -66,7 +65,6 @@ def build_checkout_payload(
                 "unit_amount": amount,
             }
         ],
-        "redirect_url": redirect_url,
         "notification_urls": [checkout_notification_url],
         "payment_notification_urls": [payment_notification_url],
         "payment_methods": [
@@ -99,6 +97,8 @@ def create_pagbank_checkout(
         frontend_base_url=frontend_base_url,
     )
 
+    print("PAGBANK PAYLOAD:", payload)
+
     response = requests.post(
         f"{get_pagbank_base_url()}/checkouts",
         headers=get_pagbank_headers(),
@@ -110,6 +110,9 @@ def create_pagbank_checkout(
         data = response.json()
     except Exception:
         data = {"raw_text": response.text}
+
+    print("PAGBANK RESPONSE STATUS:", response.status_code)
+    print("PAGBANK RESPONSE BODY:", data)
 
     if not response.ok:
         raise ValueError(
