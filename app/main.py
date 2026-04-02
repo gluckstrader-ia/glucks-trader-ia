@@ -29,7 +29,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix=API_V1_PREFIX)
 app.include_router(analyze_router, prefix=API_V1_PREFIX)
 app.include_router(radar_router, prefix=API_V1_PREFIX)
-app.include_router(payments_router)
+app.include_router(payments_router, prefix="/api")
 app.include_router(news_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(webhook_router, prefix="/api")

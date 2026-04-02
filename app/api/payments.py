@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Literal, Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -40,6 +40,7 @@ def create_checkout(
 
         if not backend_base_url:
             raise ValueError("BACKEND_BASE_URL não configurado")
+
         if not frontend_base_url:
             raise ValueError("FRONTEND_BASE_URL não configurado")
 
@@ -79,6 +80,7 @@ def create_checkout(
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
     except Exception as e:
         raise HTTPException(
             status_code=500,

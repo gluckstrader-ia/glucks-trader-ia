@@ -14,6 +14,7 @@ def get_pagbank_base_url() -> str:
 
 def get_pagbank_headers() -> Dict[str, str]:
     token = os.getenv("PAGBANK_TOKEN", "").strip()
+
     if not token:
         raise ValueError("PAGBANK_TOKEN não configurado")
 
@@ -28,11 +29,11 @@ def plan_amount_cents(plan: str) -> int:
     normalized = (plan or "").strip().lower()
 
     if normalized == "mensal":
-        return 9900
+        return 19700
     if normalized == "trimestral":
-        return 24900
+        return 49700
     if normalized == "semestral":
-        return 44900
+        return 89700
 
     raise ValueError("Plano inválido. Use mensal, trimestral ou semestral.")
 
@@ -48,9 +49,6 @@ def build_checkout_payload(
 ) -> Dict[str, Any]:
     amount = plan_amount_cents(plan)
 
-    # expiração opcional do checkout:
-    # a documentação diz que você pode definir expiration_date;
-    # se não definir, o checkout segue ativo. Mantemos simples no começo.
     payment_notification_url = f"{backend_base_url}/api/webhook/pagbank"
     checkout_notification_url = f"{backend_base_url}/api/webhook/pagbank"
     redirect_url = f"{frontend_base_url}/premium?checkout=success&plan={plan}"
@@ -91,6 +89,7 @@ def create_pagbank_checkout(
     frontend_base_url: str,
 ) -> Dict[str, Any]:
     reference_id = f"gluck-{plan}-{uuid.uuid4().hex[:16]}"
+
     payload = build_checkout_payload(
         user_name=user_name,
         user_email=user_email,
