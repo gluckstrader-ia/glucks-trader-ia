@@ -10,6 +10,7 @@ from app.api.payments import router as payments_router
 from app.api.news import router as news_router
 from app.api.admin import router as admin_router
 from app.api.webhook import router as webhook_router
+from app.api.market_data import router as market_data_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -33,6 +34,7 @@ app.include_router(payments_router, prefix="/api")
 app.include_router(news_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(webhook_router, prefix="/api")
+app.include_router(market_data_router, prefix="/api")
 
 @app.get("/")
 def root():
