@@ -2,6 +2,7 @@ from typing import Any, Dict
 
 import pandas as pd
 
+from app.services.smc.engine import calculate_smc
 from app.services.symbol_resolver import resolve_provider_symbol
 from app.services.market_data_service import get_market_data
 from app.indicators import (
@@ -113,7 +114,7 @@ def get_instrument_config(asset: str, asset_type: str, timeframe: str) -> Dict[s
             "price_decimals": 2,
         })
 
-    elif asset_type in {"stock", "index", "b3"}:
+    elif asset_type in {"stock", "index", "b3", "commodity"}:
         config.update({
             "tick_size": 0.01,
             "price_decimals": 2,
@@ -138,10 +139,6 @@ def determine_direction(
     rsi: float,
     atr: float = 0.0,
 ) -> Dict[str, Any]:
-
-    # =========================
-    # 1. TREND SCORE (peso alto)
-    # =========================
     trend_score = 0
 
     if sma20 > sma50:
@@ -154,9 +151,6 @@ def determine_direction(
     else:
         trend_score -= 15
 
-    # =========================
-    # 2. MOMENTUM (RSI)
-    # =========================
     momentum_score = 0
 
     if rsi >= 60:
@@ -164,11 +158,8 @@ def determine_direction(
     elif rsi <= 40:
         momentum_score -= 20
     else:
-        momentum_score += (rsi - 50) * 0.8  # zona neutra suavizada
+        momentum_score += (rsi - 50) * 0.8
 
-    # =========================
-    # 3. PRICE POSITION
-    # =========================
     position_score = 0
 
     if close > sma20:
@@ -176,9 +167,6 @@ def determine_direction(
     else:
         position_score -= 10
 
-    # =========================
-    # 4. VOLATILITY FILTER (ATR)
-    # =========================
     volatility_penalty = 0
     atr_pct = (atr / close) * 100 if close else 0
 
@@ -187,18 +175,11 @@ def determine_direction(
     elif atr_pct > 1.5:
         volatility_penalty = 5
 
-    # =========================
-    # SCORE FINAL
-    # =========================
     raw_score = trend_score + momentum_score + position_score - volatility_penalty
 
-    # normalização
     bullish_score = max(5, min(98, 50 + raw_score))
     bearish_score = max(5, min(98, 50 - raw_score))
 
-    # =========================
-    # FILTRO DE NEUTRALIDADE (MUITO IMPORTANTE)
-    # =========================
     diff = abs(bullish_score - bearish_score)
 
     if diff < 8:
@@ -206,13 +187,11 @@ def determine_direction(
         score = round(50 - (8 - diff), 1)
         confidence = score
         confidence_label = "BAIXA"
-
     elif bullish_score > bearish_score:
         direction = "COMPRA"
         score = round(bullish_score, 1)
         confidence = score
         confidence_label = "ALTA" if score >= 80 else "MÉDIA" if score >= 65 else "BAIXA"
-
     else:
         direction = "VENDA"
         score = round(bearish_score, 1)
@@ -226,7 +205,6 @@ def determine_direction(
         "confidence_label": confidence_label,
         "bullish_raw": round(bullish_score, 1),
         "bearish_raw": round(bearish_score, 1),
-
         "bullish_points": round(max(0, bullish_score - 50) / 10),
         "bearish_points": round(max(0, bearish_score - 50) / 10),
     }
@@ -248,7 +226,6 @@ def calculate_module_confluence(
     probabilistic_score = 50.0
     timing_score = 50.0
 
-    # TÉCNICA
     if sma20 > sma50:
         technical_score += 12
     elif sma20 < sma50:
@@ -271,7 +248,6 @@ def calculate_module_confluence(
     else:
         technical_score += (rsi - 50) * 0.4
 
-    # SMC
     if direction == "COMPRA":
         if zone_position_pct <= 35:
             smc_score += 18
@@ -289,7 +265,6 @@ def calculate_module_confluence(
     else:
         smc_score -= 5
 
-    # PROBABILÍSTICA
     atr_pct = (atr / close) * 100 if close else 0
 
     if atr_pct <= 0.8:
@@ -304,7 +279,6 @@ def calculate_module_confluence(
     if direction == "NEUTRO":
         probabilistic_score -= 8
 
-    # TIMING
     if atr_pct <= 1.8:
         timing_score += 6
     else:
@@ -334,6 +308,7 @@ def calculate_module_confluence(
         "final_confluence_score": final_confluence_score,
     }
 
+
 def apply_signal_filter(
     direction: str,
     confluence_score: float,
@@ -342,28 +317,23 @@ def apply_signal_filter(
     buy_probability: float,
     sell_probability: float,
 ) -> Dict[str, Any]:
-
     atr_pct = (atr / close) * 100 if close else 0
 
     reasons = []
     veto = False
 
-    # 1. Baixa confluência
     if confluence_score < 55:
         veto = True
         reasons.append("Baixa confluência entre módulos")
 
-    # 2. Mercado lateral (probabilidades próximas)
     if abs(buy_probability - sell_probability) < 8:
         veto = True
         reasons.append("Mercado lateral / indecisão")
 
-    # 3. Volatilidade excessiva
     if atr_pct > 2.8:
         veto = True
         reasons.append("Alta volatilidade")
 
-    # 4. Probabilidade fraca
     if direction == "COMPRA" and buy_probability < 55:
         veto = True
         reasons.append("Probabilidade de compra baixa")
@@ -376,6 +346,7 @@ def apply_signal_filter(
         "veto": veto,
         "reasons": reasons,
     }
+
 
 def calculate_scenario_probabilities(
     direction: str,
@@ -390,11 +361,9 @@ def calculate_scenario_probabilities(
     buy_probability = 50.0
     sell_probability = 50.0
 
-    # Base pelo score bruto direcional
     buy_probability += (bullish_raw - 50) * 0.55
     sell_probability += (bearish_raw - 50) * 0.55
 
-    # Ajuste pela confluência real
     confluence_boost = (confluence_score - 50) * 0.45
     if direction == "COMPRA":
         buy_probability += confluence_boost
@@ -406,7 +375,6 @@ def calculate_scenario_probabilities(
         buy_probability -= 4
         sell_probability -= 4
 
-    # Penalidade por volatilidade excessiva
     if atr_pct > 2.8:
         buy_probability -= 10
         sell_probability -= 10
@@ -417,11 +385,9 @@ def calculate_scenario_probabilities(
         buy_probability -= 3
         sell_probability -= 3
 
-    # Faixa de segurança
     buy_probability = max(3, min(97, buy_probability))
     sell_probability = max(3, min(97, sell_probability))
 
-    # Se as probabilidades ficarem muito próximas, reforça neutralidade
     diff = abs(buy_probability - sell_probability)
     if diff < 6:
         avg = (buy_probability + sell_probability) / 2
@@ -438,6 +404,7 @@ def calculate_scenario_probabilities(
         "sell_probability": round(sell_probability, 1),
         "neutral_probability": round(neutral_probability, 1),
     }
+
 
 def calculate_trade_levels(
     direction: str,
@@ -586,6 +553,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
 
     df = clean_df
     print(f"Indicadores válidos usando colunas: {used_cols}")
+
+    smc_data = calculate_smc(df)
 
     last = df.iloc[-1]
 
@@ -746,7 +715,6 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
 
     trend_bias = "ALTA" if direction == "COMPRA" else "BAIXA" if direction == "VENDA" else "NEUTRO"
     ema_trend = "ALTA" if ema9 > ema21 else "BAIXA" if ema9 < ema21 else "NEUTRO"
-    smc_bias = "BULLISH" if direction == "COMPRA" else "BEARISH" if direction == "VENDA" else "NEUTRAL"
 
     primary_entry = buy_entry if direction == "COMPRA" else sell_entry if direction == "VENDA" else close
     primary_stop = buy_stop if direction == "COMPRA" else sell_stop if direction == "VENDA" else close
@@ -781,7 +749,11 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "confluence": f"{round(confluence['final_confluence_score'] / 10, 1)}/10",
             "trend_label": trend_bias,
             "technical_label": trend_bias,
-            "smart_money_label": "COMPRA" if direction == "COMPRA" else "VENDA" if direction == "VENDA" else "NEUTRO",
+            "smart_money_label": (
+                "COMPRA" if direction == "COMPRA"
+                else "VENDA" if direction == "VENDA"
+                else "NEUTRO"
+            ),
             "tp2": primary_tp2,
             "tp3": primary_tp3,
             "confidence": round(confidence, 1),
@@ -801,45 +773,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "resistances": resistances,
         },
 
-        "smc": {
-            "bias": smc_bias,
-            "structure_label": "Estrutura de alta" if direction == "COMPRA" else "Estrutura de baixa" if direction == "VENDA" else "Estrutura lateral",
-            "last_bos": round(close, 6),
-            "context": {"candles": 50, "bias": smc_bias},
-            "structure": {"candles": 20, "bias": smc_bias},
-            "trigger": {"candles": 5, "bias": smc_bias},
-            "divergence": "Sem divergência relevante",
-            "order_blocks": [
-                {
-                    "title": "OB Principal",
-                    "price": f"{nearest_support:.6f}",
-                    "desc": "Região institucional observada",
-                    "strength": "Média",
-                    "bullish": direction == "COMPRA",
-                }
-            ],
-            "fvgs": [
-                {
-                    "title": "FVG Atual",
-                    "zone": f"{nearest_support:.6f} - {nearest_resistance:.6f}",
-                    "state": "Aberto",
-                    "bullish": direction == "COMPRA",
-                }
-            ],
-            "liquidity": [
-                {"price": round(nearest_resistance, 6), "desc": "Liquidez compradora acima", "tag": "High"},
-                {"price": round(nearest_support, 6), "desc": "Liquidez vendedora abaixo", "tag": "Low"},
-            ],
-            "structure_breaks": [
-                {
-                    "title": "Última quebra",
-                    "price": round(close, 6),
-                    "desc": "Último rompimento relevante",
-                    "bullish": direction == "COMPRA",
-                }
-            ],
-            "summary": f"Leitura SMC com viés {smc_bias}.",
-        },
+        "smc": smc_data,
 
         "harmonics": {
             "patterns": [],
