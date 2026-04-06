@@ -5,6 +5,7 @@ import pandas as pd
 from app.services.smc.engine import calculate_smc
 from app.services.symbol_resolver import resolve_provider_symbol
 from app.services.market_data_service import get_market_data
+from app.services.harmonics.engine import calculate_harmonics
 from app.indicators import (
     calculate_sma,
     calculate_ema,
@@ -555,6 +556,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     print(f"Indicadores válidos usando colunas: {used_cols}")
 
     smc_data = calculate_smc(df)
+    harmonics_data = calculate_harmonics(df)
 
     last = df.iloc[-1]
 
@@ -775,13 +777,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
 
         "smc": smc_data,
 
-        "harmonics": {
-            "patterns": [],
-            "fib_levels": [
-                {"level": "0.382", "price": round(close - atr14 * 0.382, 6), "type": "support"},
-                {"level": "0.618", "price": round(close + atr14 * 0.618, 6), "type": "resistance"},
-            ],
-        },
+        "harmonics": harmonics_data,
 
         "wegd": {
             "bias": direction,
