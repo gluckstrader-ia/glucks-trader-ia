@@ -7,6 +7,7 @@ from app.services.symbol_resolver import resolve_provider_symbol
 from app.services.market_data_service import get_market_data
 from app.services.harmonics.engine import calculate_harmonics
 from app.services.wegd.engine import calculate_wegd
+from app.services.probabilistic.engine import calculate_probabilistic
 from app.indicators import (
     calculate_sma,
     calculate_ema,
@@ -559,6 +560,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     smc_data = calculate_smc(df)
     harmonics_data = calculate_harmonics(df)
     wegd_data = calculate_wegd(df)
+    probabilistic_data = calculate_probabilistic(df)
 
     last = df.iloc[-1]
 
@@ -783,36 +785,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
 
         "wegd": wegd_data,
 
-        "probabilistic": {
-            "win_rate_general": round(score, 1),
-            "win_rate_long": round(buy_probability, 1),
-            "win_rate_short": round(sell_probability, 1),
-            "historical": {
-                "periods": 100,
-                "return_pct": round(((primary_target - primary_entry) / primary_entry) * 100, 2) if primary_entry else 0,
-                "volatility_pct": round((atr14 / close) * 100, 2) if close else 0,
-                "sharpe": 1.2,
-                "max_drawdown_pct": 3.8,
-            },
-            "monte_carlo": {
-                "confidence_level": 95,
-                "low": round(primary_stop, 6),
-                "mid": round(close, 6),
-                "high": round(primary_target, 6),
-            },
-            "scenarios": {
-                "bullish": round(buy_probability, 1),
-                "neutral": round(neutral_probability, 1),
-                "bearish": round(sell_probability, 1),
-            },
-            "seasonality": [],
-            "risk_metrics": {
-                "var_95": 1.5,
-                "expected_shortfall": 2.1,
-                "beta": 1.0,
-                "correlation": 0.5,
-            },
-        },
+        "probabilistic": probabilistic_data,
 
         "timing": {
             "market_name": asset_type.upper(),
