@@ -6,6 +6,7 @@ from app.services.smc.engine import calculate_smc
 from app.services.symbol_resolver import resolve_provider_symbol
 from app.services.market_data_service import get_market_data
 from app.services.harmonics.engine import calculate_harmonics
+from app.services.wegd.engine import calculate_wegd
 from app.indicators import (
     calculate_sma,
     calculate_ema,
@@ -557,6 +558,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
 
     smc_data = calculate_smc(df)
     harmonics_data = calculate_harmonics(df)
+    wegd_data = calculate_wegd(df)
 
     last = df.iloc[-1]
 
@@ -779,50 +781,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
 
         "harmonics": harmonics_data,
 
-        "wegd": {
-            "bias": direction,
-            "confluence": f"{round(score / 10, 1)}/10",
-            "summary": f"WEGD aponta {direction}.",
-            "wyckoff": {
-                "phase": "Markup" if direction == "COMPRA" else "Markdown" if direction == "VENDA" else "Range",
-                "progress": round(score, 1),
-                "confidence": round(confidence, 1),
-                "next_phase": "Continuação",
-                "composite_man": "Ativo",
-                "events_confirmed": [],
-                "events_pending": [],
-                "volume_state": "Normal",
-                "volume_label": "Volume equilibrado",
-            },
-            "elliott": {
-                "current_wave": "3" if direction == "COMPRA" else "C" if direction == "VENDA" else "X",
-                "mode": direction,
-                "progress": round(score, 1),
-                "confidence": round(confidence, 1),
-                "next_wave": "4",
-                "invalidation": primary_stop,
-                "wave_points": [],
-            },
-            "gann": {
-                "dominant_angle": "1x1",
-                "support_angles": [{"angle": "1x1", "price": nearest_support}],
-                "resistance_angles": [{"angle": "1x1", "price": nearest_resistance}],
-                "current_cycle_days": 7,
-                "next_reversal": "Em observação",
-                "days_in_cycle": 3,
-                "price_square_levels": [{"price": close, "strength": "Média"}],
-            },
-            "dow": {
-                "primary": trend_bias,
-                "secondary": trend_bias,
-                "minor": trend_bias,
-                "market_phase": "Expansão" if direction != "NEUTRO" else "Lateralização",
-                "market_phase_score": round(score, 1),
-                "price_volume_confirmation": "Confirmado",
-                "indices_confirmation": "Neutro",
-                "volume_note": "Sem anomalia de volume",
-            },
-        },
+        "wegd": wegd_data,
 
         "probabilistic": {
             "win_rate_general": round(score, 1),
