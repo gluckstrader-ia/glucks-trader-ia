@@ -28,7 +28,7 @@ def calculate_seasonality(df: pd.DataFrame) -> List[dict]:
     if not isinstance(working.index, pd.DatetimeIndex):
         return []
 
-    monthly = working["close"].resample("M").agg(["first", "last"]).dropna()
+    monthly = working["close"].resample("ME").agg(["first", "last"]).dropna()
 
     if monthly.empty:
         return []
