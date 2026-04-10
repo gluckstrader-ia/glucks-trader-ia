@@ -6,7 +6,7 @@ from app.api.routes.analyze import router as analyze_router
 from app.api.routes.radar import router as radar_router
 from app.core.config import API_V1_PREFIX, APP_NAME, APP_VERSION, FRONTEND_ORIGINS
 from app.database import Base, engine
-from app.api.payments import router as payments_router
+#from app.api.payments import router as payments_router
 from app.api.news import router as news_router
 from app.api.admin import router as admin_router
 from app.api.webhook import router as webhook_router
@@ -21,7 +21,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=FRONTEND_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -30,7 +30,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix=API_V1_PREFIX)
 app.include_router(analyze_router, prefix=API_V1_PREFIX)
 app.include_router(radar_router, prefix=API_V1_PREFIX)
-app.include_router(payments_router, prefix="/api")
+#app.include_router(payments_router, prefix="/api")
 app.include_router(news_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(webhook_router, prefix="/api")
