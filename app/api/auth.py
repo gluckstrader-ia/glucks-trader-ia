@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -47,12 +47,12 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         name=payload.name.strip(),
         email=payload.email.lower().strip(),
         password_hash=hash_password(payload.password),
-        is_active=False,
+        is_active=True,
         is_blocked=False,
         is_admin=False,
-        plan="none",
-        plan_status="pending",
-        access_expires_at=None,
+        plan="trial",
+        plan_status="active",
+        access_expires_at=datetime.now(timezone.utc) + timedelta(days=5),
         pagbank_reference=None,
     )
 
