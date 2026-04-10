@@ -1,4 +1,5 @@
 import pandas as pd
+import requests
 import yfinance as yf
 
 from app.services.symbol_resolver import (
@@ -8,7 +9,6 @@ from app.services.symbol_resolver import (
 )
 from app.services.twelvedata_service import fetch_from_twelve_data
 from app.services.binance_service import fetch_from_binance
-from app.services.br_futures_service import fetch_from_br_futures
 
 
 def normalize_yfinance_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -116,8 +116,6 @@ def fetch_from_yfinance(symbol: str, timeframe: str, asset_type: str) -> pd.Data
 def is_pre_resolved_yfinance_symbol(asset: str) -> bool:
     asset = str(asset).upper().strip()
 
-    # exemplos:
-    # GC=F, MGC=F, NQ=F, EURUSD=X, BTC-USD, PETR4.SA, ^BVSP
     return (
         "=F" in asset
         or "=X" in asset
@@ -125,6 +123,56 @@ def is_pre_resolved_yfinance_symbol(asset: str) -> bool:
         or asset.startswith("^")
         or "-USD" in asset
     )
+
+
+def map_future_br_symbol(symbol: str) -> str:
+    s = str(symbol).upper().strip()
+    mapping = {
+        "WIN": "WIN",
+        "WINFUT": "WIN",
+        "WDO": "WDO",
+        "WDOFUT": "WDO",
+    }
+    return mapping.get(s, s)
+
+
+def get_future_br_from_local_bridge(
+    symbol: str,
+    timeframe: str = "5m",
+    limit: int = 300,
+) -> pd.DataFrame:
+    provider_symbol = map_future_br_symbol(symbol)
+
+    url = "http://127.0.0.1:9001/candles"
+    params = {
+        "symbol": provider_symbol,
+        "timeframe": timeframe,
+        "limit": limit,
+    }
+
+    resp = requests.get(url, params=params, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+
+    if not isinstance(data, list) or not data:
+        raise ValueError(f"Sem dados do bridge local para {provider_symbol}")
+
+    df = pd.DataFrame(data)
+
+    required = ["datetime", "open", "high", "low", "close", "volume"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"Resposta do bridge sem colunas obrigatórias: {missing}")
+
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+
+    for col in ["open", "high", "low", "close", "volume"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    df = df.dropna(subset=["datetime", "open", "high", "low", "close"])
+    df = df.sort_values("datetime").reset_index(drop=True)
+
+    return df
 
 
 def get_market_data(
@@ -137,7 +185,6 @@ def get_market_data(
     asset_type = str(asset_type).lower().strip()
 
     if asset_type == "forex":
-        # Se já veio resolvido para yfinance (ex: GC=F), pula TwelveData
         if is_pre_resolved_yfinance_symbol(asset):
             try:
                 df = fetch_from_yfinance(asset, timeframe, asset_type)
@@ -185,7 +232,21 @@ def get_market_data(
 
     elif asset_type == "future_br":
         try:
+            df = get_future_br_from_local_bridge(
+                symbol=asset,
+                timeframe=timeframe,
+                limit=300,
+            )
+            if not df.empty:
+                return df
+        except Exception as e:
+            print(f"[FALLBACK] bridge local falhou para {asset}: {e}")
+
+        # fallback opcional para o provider antigo, caso queira manter como reserva
+        try:
             br_symbol = get_br_futures_symbol(asset)
+            from app.services.br_futures_service import fetch_from_br_futures
+
             df = fetch_from_br_futures(
                 symbol=br_symbol,
                 timeframe=timeframe,
@@ -194,7 +255,7 @@ def get_market_data(
             if not df.empty:
                 return df
         except Exception as e:
-            print(f"[FALLBACK] futuros BR falhou para {asset}: {e}")
+            print(f"[FALLBACK] futuros BR legado falhou para {asset}: {e}")
 
         raise ValueError(f"Provider de futuros BR não configurado ou sem dados para {asset}")
 

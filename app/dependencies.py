@@ -21,7 +21,7 @@ def get_current_user(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido ou expirado",
+            detail="Sessão Expirada - Clique em SAIR e Faça Login Novamente",
         )
 
     user = get_user_by_id(db, user_id)

@@ -33,6 +33,14 @@ def calculate_elliott(df: pd.DataFrame) -> ElliottData:
             )
         )
 
+    # 🔥 garante que sempre existam valores válidos
+    if len(sample) > 0:
+        start_close = float(sample["close"].iloc[0])
+        end_close = float(sample["close"].iloc[-1])
+    else:
+        start_close = 0.0
+        end_close = 0.0
+
     if len(sample) < 30:
         current_wave = "X"
         mode = "NEUTRA"
@@ -40,9 +48,6 @@ def calculate_elliott(df: pd.DataFrame) -> ElliottData:
         confidence = 40.0
         next_wave = "—"
     else:
-        start_close = float(sample["close"].iloc[0])
-        end_close = float(sample["close"].iloc[-1])
-
         if end_close > start_close:
             current_wave = "3"
             mode = "IMPULSIVA"
@@ -62,9 +67,14 @@ def calculate_elliott(df: pd.DataFrame) -> ElliottData:
             confidence = 50.0
             next_wave = "C"
 
-    invalidation = float(sample["low"].tail(20).min()) if end_close >= start_close else float(
-        sample["high"].tail(20).max()
-    )
+    if len(sample) == 0:
+        invalidation = 0.0
+    else:
+        invalidation = (
+            float(sample["low"].tail(20).min())
+            if end_close >= start_close
+            else float(sample["high"].tail(20).max())
+        )
 
     return ElliottData(
         current_wave=current_wave,
