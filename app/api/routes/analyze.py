@@ -7,6 +7,9 @@ from app.dependencies import get_current_active_user
 from app.models import User
 from app.services.analysis_service import analyze_asset
 
+from app.database import SessionLocal
+from app.services.analysis_history_service import save_analysis
+
 router = APIRouter(tags=["analyze"])
 
 
@@ -55,11 +58,20 @@ async def analyze(
         elif asset_type_normalized in {"commodity", "commodities"}:
             asset_type_normalized = "commodity"
 
-        return analyze_asset(
+        result = analyze_asset(
             asset=payload.asset,
             asset_type=asset_type_normalized,
             timeframe=payload.timeframe,
         )
+
+        # 🔥 SALVAR NO BANCO
+        db = SessionLocal()
+        try:
+            save_analysis(db, result)
+        finally:
+            db.close()
+
+        return result
 
     except ValueError as e:
         print(f"ERRO DE VALIDAÇÃO NO /api/analyze: {e}")
