@@ -3,12 +3,11 @@ from typing import Any, Dict, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.database import SessionLocal
 from app.dependencies import get_current_active_user
 from app.models import User
-from app.services.analysis_service import analyze_asset
-
-from app.database import SessionLocal
 from app.services.analysis_history_service import save_analysis
+from app.services.analysis_service import analyze_asset
 
 router = APIRouter(tags=["analyze"])
 
@@ -64,7 +63,6 @@ async def analyze(
             timeframe=payload.timeframe,
         )
 
-        # 🔥 SALVAR NO BANCO
         db = SessionLocal()
         try:
             save_analysis(db, result)

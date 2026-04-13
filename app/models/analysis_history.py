@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
 from datetime import datetime
+
+from sqlalchemy import Column, DateTime, Float, Integer, String
 from app.database import Base
 
 
@@ -8,19 +9,21 @@ class AnalysisHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    asset = Column(String, index=True)
-    asset_type = Column(String)
-    timeframe = Column(String)
+    asset = Column(String, index=True, nullable=False)
+    asset_type = Column(String, nullable=False)
+    timeframe = Column(String, nullable=False)
 
-    direction = Column(String)
-    confidence = Column(Float)
+    direction = Column(String, nullable=False)
+    confidence = Column(Float, nullable=True)
 
-    entry = Column(Float)
-    stop = Column(Float)
-    tp1 = Column(Float)
-    tp2 = Column(Float)
-    tp3 = Column(Float)
+    entry = Column(Float, nullable=False)
+    stop = Column(Float, nullable=False)
+    tp1 = Column(Float, nullable=False)
+    tp2 = Column(Float, nullable=False)
+    tp3 = Column(Float, nullable=False)
 
-    status = Column(String, default="EM_ANDAMENTO")
+    status = Column(String, default="EM_ANDAMENTO", nullable=False)
+    result_detail = Column(String, default="Aguardando fechamento", nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    validated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
