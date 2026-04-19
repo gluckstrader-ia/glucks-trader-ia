@@ -93,6 +93,25 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         "user": serialize_user(user),
     }
 
+
+@router.post("/auth/login", response_model=AuthResponse)
+def login(payload: UserLoginRequest, db: Session = Depends(get_db)):
+    user = authenticate_user(db, payload.email, payload.password)
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email ou senha inválidos",
+        )
+
+    access_token = create_access_token(user)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": serialize_user(user),
+    }
+
 @router.get("/auth/me", response_model=UserResponse)
 def auth_me(current_user: User = Depends(get_current_user)):
     return serialize_user(current_user)
