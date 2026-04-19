@@ -3,6 +3,10 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.services.affiliate_service import attach_partner_to_customer_by_code
+
+from app.services.affiliate_service import create_recurring_commission
+
 from app.auth import (
     authenticate_user,
     create_access_token,
@@ -33,6 +37,12 @@ PLAN_DURATIONS = {
     "semestral": 180,
 }
 
+PLAN_PRICES = {
+    "mensal": 197.00,
+    "trimestral": 497.00,
+    "semestral": 897.00,
+}
+
 
 @router.post("/auth/register", response_model=AuthResponse)
 def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
@@ -60,24 +70,20 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    access_token = create_access_token(user)
+    # 🔥 AQUI ENTRA A LÓGICA DO PARCEIRO
+    try:
+        partner_code = getattr(payload, "referred_by_code", None)
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": serialize_user(user),
-    }
+        if partner_code:
+            attach_partner_to_customer_by_code(
+                db=db,
+                customer=user,
+                partner_code=partner_code.strip().upper(),
+            )
 
-
-@router.post("/auth/login", response_model=AuthResponse)
-def login(payload: UserLoginRequest, db: Session = Depends(get_db)):
-    user = authenticate_user(db, payload.email, payload.password)
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email ou senha inválidos",
-        )
+    except Exception as e:
+        # Não quebra o cadastro por erro de parceiro
+        print(f"[AFILIADO] Erro ao vincular parceiro: {e}")
 
     access_token = create_access_token(user)
 
@@ -86,7 +92,6 @@ def login(payload: UserLoginRequest, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "user": serialize_user(user),
     }
-
 
 @router.get("/auth/me", response_model=UserResponse)
 def auth_me(current_user: User = Depends(get_current_user)):
@@ -130,6 +135,17 @@ def activate_user(
     db.commit()
     db.refresh(user)
 
+    plan_price = PLAN_PRICES[selected_plan]
+
+    create_recurring_commission(
+        db=db,
+        customer=user,
+        gross_amount=plan_price,
+        plan=selected_plan,
+        payment_reference=f"manual-activate-{user.id}-{selected_plan}",
+        billing_cycle="first_payment",
+    )
+
     return {
         "message": f"Usuário {user.name} ativado com sucesso",
         "user": serialize_user(user),
@@ -167,6 +183,17 @@ def renew_user(
 
     db.commit()
     db.refresh(user)
+
+    plan_price = PLAN_PRICES[selected_plan]
+
+    create_recurring_commission(
+        db=db,
+        customer=user,
+        gross_amount=plan_price,
+        plan=selected_plan,
+        payment_reference=f"manual-renew-{user.id}-{selected_plan}",
+        billing_cycle="recurring",
+    )
 
     return {
         "message": f"Usuário {user.name} renovado com sucesso",
