@@ -8,7 +8,7 @@ class UserRegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=120)
     email: EmailStr
     password: str = Field(..., min_length=4, max_length=120)
-
+    referred_by_code: Optional[str] = None
 
 class UserLoginRequest(BaseModel):
     email: EmailStr
