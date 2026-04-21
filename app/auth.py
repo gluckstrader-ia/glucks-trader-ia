@@ -86,13 +86,35 @@ def serialize_user(user: User) -> dict:
         "id": user.id,
         "name": user.name,
         "email": user.email,
-        "is_active": user.is_active,
-        "is_blocked": user.is_blocked,
-        "is_admin": user.is_admin,
+
+        "is_active": bool(user.is_active),
+        "is_blocked": bool(user.is_blocked),
+        "is_admin": bool(user.is_admin),
+
         "plan": getattr(user, "plan", "none"),
         "plan_status": getattr(user, "plan_status", "pending"),
-        "access_expires_at": user.access_expires_at.isoformat() if getattr(user, "access_expires_at", None) else None,
-        "has_access": user_has_access(user),
-        "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
-        "updated_at": user.updated_at.isoformat() if getattr(user, "updated_at", None) else None,
+
+        "access_expires_at": (
+            user.access_expires_at.isoformat()
+            if getattr(user, "access_expires_at", None)
+            else None
+        ),
+
+        "has_access": bool(user_has_access(user)),
+
+        "created_at": (
+            user.created_at.isoformat()
+            if getattr(user, "created_at", None)
+            else None
+        ),
+        "updated_at": (
+            user.updated_at.isoformat()
+            if getattr(user, "updated_at", None)
+            else None
+        ),
+
+        # 🔥 PARCEIRO (GARANTIDO SEMPRE BOOLEAN/STRING)
+        "is_partner": bool(getattr(user, "is_partner", False)),
+        "partner_code": getattr(user, "partner_code", None),
+        "partner_status": getattr(user, "partner_status", "inactive"),
     }
