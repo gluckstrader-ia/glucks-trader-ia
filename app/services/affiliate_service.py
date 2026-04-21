@@ -43,17 +43,29 @@ def attach_partner_to_customer_by_code(db: Session, customer: User, partner_code
     if not partner_code:
         return customer
 
+    normalized_code = str(partner_code).strip().upper()
+    if not normalized_code:
+        return customer
+
     # Se já existe parceiro vinculado, não troca
     if customer.referred_by_user_id and customer.referred_by_code:
         return customer
 
-    partner = db.query(User).filter(
-        User.partner_code == partner_code,
-        User.is_partner == True,
-        User.partner_status == "active"
-    ).first()
+    partner = (
+        db.query(User)
+        .filter(
+            User.partner_code == normalized_code,
+            User.is_partner == True,
+            User.partner_status == "active",
+        )
+        .first()
+    )
 
     if not partner:
+        return customer
+
+    # Evita auto-vinculação acidental
+    if customer.id == partner.id:
         return customer
 
     customer.referred_by_user_id = partner.id
@@ -99,6 +111,84 @@ def create_recurring_commission(
     db.refresh(commission)
 
     return commission
+
+
+def get_partner_dashboard_summary(db: Session, partner_user_id: int) -> dict:
+    indications = db.query(User).filter(User.referred_by_user_id == partner_user_id).count()
+
+    commissions = (
+        db.query(AffiliateCommission)
+        .filter(AffiliateCommission.partner_user_id == partner_user_id)
+        .all()
+    )
+
+    total_sales = len(commissions)
+    total_commission_generated = round(
+        sum(float(item.commission_amount or 0) for item in commissions), 2
+    )
+    total_commission_paid = round(
+        sum(
+            float(item.commission_amount or 0)
+            for item in commissions
+            if (item.status or "").lower() == "paid"
+        ),
+        2,
+    )
+    total_commission_pending = round(
+        sum(
+            float(item.commission_amount or 0)
+            for item in commissions
+            if (item.status or "").lower() in ("pending", "available")
+        ),
+        2,
+    )
+
+    return {
+        "total_indications": indications,
+        "total_sales": total_sales,
+        "total_commission_generated": total_commission_generated,
+        "total_commission_paid": total_commission_paid,
+        "total_commission_pending": total_commission_pending,
+    }
+
+
+def get_partner_indications(db: Session, partner_user_id: int) -> list[dict]:
+    referred_users = (
+        db.query(User)
+        .filter(User.referred_by_user_id == partner_user_id)
+        .order_by(User.created_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "plan": user.plan,
+            "plan_status": user.plan_status,
+            "is_active": bool(user.is_active),
+            "is_blocked": bool(user.is_blocked),
+            "has_access": bool(
+                user.is_active
+                and not user.is_blocked
+                and user.plan_status == "active"
+                and user.access_expires_at is not None
+            ),
+            "referred_by_code": user.referred_by_code,
+            "created_at": (
+                user.created_at.isoformat()
+                if getattr(user, "created_at", None)
+                else None
+            ),
+            "access_expires_at": (
+                user.access_expires_at.isoformat()
+                if getattr(user, "access_expires_at", None)
+                else None
+            ),
+        }
+        for user in referred_users
+    ]
 
 
 def release_weekly_commissions(db: Session):

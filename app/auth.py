@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import random
+import string
 from typing import Optional
 
 import jwt
@@ -28,6 +30,7 @@ def create_access_token(user: User) -> str:
         "sub": str(user.id),
         "email": user.email,
         "is_admin": user.is_admin,
+        "is_partner": bool(getattr(user, "is_partner", False)),
         "exp": expire,
     }
 
@@ -44,6 +47,39 @@ def get_user_by_email(db: Session, email: str) -> Optional[User]:
 
 def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
     return db.query(User).filter(User.id == user_id).first()
+
+
+def get_user_by_partner_code(db: Session, partner_code: str) -> Optional[User]:
+    code = str(partner_code or "").strip().upper()
+    if not code:
+        return None
+
+    return (
+        db.query(User)
+        .filter(
+            User.partner_code == code,
+            User.is_partner == True,
+        )
+        .first()
+    )
+
+
+def partner_code_exists(db: Session, partner_code: str) -> bool:
+    return get_user_by_partner_code(db, partner_code) is not None
+
+
+def generate_partner_code(db: Session, name: str) -> str:
+    base = "".join(ch for ch in str(name).upper() if ch.isalnum())[:6]
+    if not base:
+        base = "PARC"
+
+    while True:
+        suffix = "".join(random.choices(string.digits, k=4))
+        code = f"{base}{suffix}"
+
+        exists = db.query(User).filter(User.partner_code == code).first()
+        if not exists:
+            return code
 
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
@@ -82,6 +118,9 @@ def user_has_access(user: Optional[User]) -> bool:
 
 
 def serialize_user(user: User) -> dict:
+    referred_by_user_id = getattr(user, "referred_by_user_id", None)
+    referred_by_code = getattr(user, "referred_by_code", None)
+
     return {
         "id": user.id,
         "name": user.name,
@@ -116,4 +155,9 @@ def serialize_user(user: User) -> dict:
         "is_partner": bool(getattr(user, "is_partner", False)),
         "partner_code": getattr(user, "partner_code", None),
         "partner_status": getattr(user, "partner_status", "inactive"),
+        "partner_pix_key": getattr(user, "partner_pix_key", None),
+        "partner_pix_type": getattr(user, "partner_pix_type", None),
+
+        "referred_by_user_id": referred_by_user_id,
+        "referred_by_code": referred_by_code,
     }
