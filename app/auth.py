@@ -113,7 +113,6 @@ def serialize_user(user: User) -> dict:
             else None
         ),
 
-        # 🔥 PARCEIRO (GARANTIDO SEMPRE BOOLEAN/STRING)
         "is_partner": bool(getattr(user, "is_partner", False)),
         "partner_code": getattr(user, "partner_code", None),
         "partner_status": getattr(user, "partner_status", "inactive"),
