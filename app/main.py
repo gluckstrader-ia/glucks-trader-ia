@@ -19,6 +19,7 @@ from app import models_affiliate
 from app.api.partners import router as partners_router
 from app.api.admin_affiliates import router as admin_affiliates_router
 from app.api.routes.live_room import router as live_room_router
+from app.api.routes.quant import router as quant_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -57,6 +58,7 @@ app.include_router(analysis_history_router, prefix="/api")
 app.include_router(partners_router, prefix=API_V1_PREFIX)
 app.include_router(admin_affiliates_router, prefix="/api")
 app.include_router(live_room_router, prefix=API_V1_PREFIX)
+app.include_router(quant_router, prefix=API_V1_PREFIX)
 
 
 @app.get("/")
