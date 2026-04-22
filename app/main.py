@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from app.api.auth import router as auth_router
 from app.api.routes.analyze import router as analyze_router
 from app.api.routes.radar import router as radar_router
@@ -15,6 +18,7 @@ from app.api.routes.analysis_history import router as analysis_history_router
 from app import models_affiliate
 from app.api.partners import router as partners_router
 from app.api.admin_affiliates import router as admin_affiliates_router
+from app.api.routes.live_room import router as live_room_router
 
 Base.metadata.create_all(bind=engine)
 
@@ -52,6 +56,7 @@ app.include_router(market_data_router, prefix="/api")
 app.include_router(analysis_history_router, prefix="/api")
 app.include_router(partners_router, prefix=API_V1_PREFIX)
 app.include_router(admin_affiliates_router, prefix="/api")
+app.include_router(live_room_router, prefix=API_V1_PREFIX)
 
 
 @app.get("/")
