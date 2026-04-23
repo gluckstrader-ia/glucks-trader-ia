@@ -5,7 +5,7 @@ from typing import Dict, Literal
 
 import pandas as pd
 
-from app.api.market_data import MARKET_CACHE
+from app.api.market_data import get_market_data as get_internal_market_data
 from app.services.market_data_service import get_market_data
 from app.services.analysis_service import validate_dataframe
 
@@ -24,38 +24,44 @@ AssetType = Literal[
 
 def get_b3_quant_dataframe(symbol: str) -> pd.DataFrame:
     """
-    Lê diretamente o cache interno da B3 (WIN/WDO) e monta
-    um DataFrame mínimo para o Quant funcionar.
+    Usa a mesma fonte do bloco lateral, chamando diretamente
+    a função da rota interna da B3, sem HTTP.
     """
     symbol = str(symbol).upper().strip()
 
-    if symbol not in MARKET_CACHE or not MARKET_CACHE[symbol]:
-        raise ValueError(f"Ativo {symbol} sem dados em memória no MARKET_CACHE")
+    try:
+        payload = get_internal_market_data(symbol)
 
-    payload = MARKET_CACHE[symbol]
+        if not payload or "data" not in payload:
+            raise ValueError(f"Resposta interna inválida para {symbol}")
 
-    last_price = float(payload.get("last_price") or 0)
-    open_price = float(payload.get("open_price") or last_price)
-    high_price = float(payload.get("high_price") or last_price)
-    low_price = float(payload.get("low_price") or last_price)
-    volume = float(payload.get("volume") or 0)
+        data = payload["data"]
 
-    if last_price <= 0:
-        raise ValueError(f"last_price inválido para {symbol}")
+        last_price = float(data.get("last_price") or 0)
+        open_price = float(data.get("open_price") or last_price)
+        high_price = float(data.get("high_price") or last_price)
+        low_price = float(data.get("low_price") or last_price)
+        volume = float(data.get("volume") or 0)
 
-    rows = []
-    for _ in range(60):
-        rows.append(
-            {
-                "open": open_price,
-                "high": high_price,
-                "low": low_price,
-                "close": last_price,
-                "volume": volume,
-            }
-        )
+        if last_price <= 0:
+            raise ValueError(f"last_price inválido para {symbol}")
 
-    return pd.DataFrame(rows)
+        rows = []
+        for _ in range(60):
+            rows.append(
+                {
+                    "open": open_price,
+                    "high": high_price,
+                    "low": low_price,
+                    "close": last_price,
+                    "volume": volume,
+                }
+            )
+
+        return pd.DataFrame(rows)
+
+    except Exception as e:
+        raise ValueError(f"Falha ao obter snapshot interno B3 para {symbol}: {e}")
 
 
 def _ema(series: pd.Series, period: int) -> pd.Series:
