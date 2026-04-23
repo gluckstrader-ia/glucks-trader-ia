@@ -66,7 +66,7 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         is_admin=False,
         plan="trial",
         plan_status="active",
-        access_expires_at=datetime.now(timezone.utc) + timedelta(days=5),
+        access_expires_at=datetime.now(timezone.utc) + timedelta(days=2),
     )
 
     db.add(user)
