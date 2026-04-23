@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import Dict, Literal
 
 import pandas as pd
-import requests
 
+from app.api.market_data import MARKET_CACHE
 from app.services.market_data_service import get_market_data
 from app.services.analysis_service import validate_dataframe
 
@@ -21,49 +21,42 @@ AssetType = Literal[
     "future_us",
 ]
 
+
 def get_b3_quant_dataframe(symbol: str) -> pd.DataFrame:
     """
-    Busca o snapshot interno da B3 e monta um DataFrame mínimo
-    para o Quant funcionar com WIN/WDO.
+    Lê diretamente o cache interno da B3 (WIN/WDO) e monta
+    um DataFrame mínimo para o Quant funcionar.
     """
-    try:
-        response = requests.get(
-            f"http://127.0.0.1:8000/api/internal/market-data/{symbol}",
-            timeout=5,
+    symbol = str(symbol).upper().strip()
+
+    if symbol not in MARKET_CACHE or not MARKET_CACHE[symbol]:
+        raise ValueError(f"Ativo {symbol} sem dados em memória no MARKET_CACHE")
+
+    payload = MARKET_CACHE[symbol]
+
+    last_price = float(payload.get("last_price") or 0)
+    open_price = float(payload.get("open_price") or last_price)
+    high_price = float(payload.get("high_price") or last_price)
+    low_price = float(payload.get("low_price") or last_price)
+    volume = float(payload.get("volume") or 0)
+
+    if last_price <= 0:
+        raise ValueError(f"last_price inválido para {symbol}")
+
+    rows = []
+    for _ in range(60):
+        rows.append(
+            {
+                "open": open_price,
+                "high": high_price,
+                "low": low_price,
+                "close": last_price,
+                "volume": volume,
+            }
         )
-        response.raise_for_status()
-        payload = response.json()
 
-        if not payload:
-            raise ValueError(f"Sem payload interno para {symbol}")
+    return pd.DataFrame(rows)
 
-        last_price = float(payload.get("last_price") or 0)
-        open_price = float(payload.get("open_price") or last_price)
-        high_price = float(payload.get("high_price") or last_price)
-        low_price = float(payload.get("low_price") or last_price)
-        volume = float(payload.get("volume") or 0)
-
-        if last_price <= 0:
-            raise ValueError(f"last_price inválido para {symbol}")
-
-        # Criamos várias linhas iguais só para o restante do cálculo não quebrar.
-        # Depois podemos sofisticar isso, mas já resolve o Quant para WIN/WDO.
-        rows = []
-        for _ in range(60):
-            rows.append(
-                {
-                    "open": open_price,
-                    "high": high_price,
-                    "low": low_price,
-                    "close": last_price,
-                    "volume": volume,
-                }
-            )
-
-        return pd.DataFrame(rows)
-
-    except Exception as e:
-        raise ValueError(f"Falha ao obter snapshot interno B3 para {symbol}: {e}")
 
 def _ema(series: pd.Series, period: int) -> pd.Series:
     return series.ewm(span=period, adjust=False).mean()
