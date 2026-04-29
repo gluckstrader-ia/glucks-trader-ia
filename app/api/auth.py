@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
+import re
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.services.affiliate_service import (
@@ -48,6 +49,42 @@ PLAN_PRICES = {
     "semestral": 897.00,
 }
 
+
+def only_numbers(value: str | None) -> str:
+    if not value:
+        return ""
+    return re.sub(r"\D", "", value)
+
+
+def is_valid_brazilian_phone(phone: str | None) -> bool:
+    phone = only_numbers(phone)
+
+    if len(phone) not in [10, 11]:
+        return False
+
+    if len(set(phone)) == 1:
+        return False
+
+    fake_numbers = {
+        "0000000000",
+        "9999999999",
+        "00000000000",
+        "99999999999",
+        "1234567890",
+        "12345678901",
+        "0123456789",
+        "01234567890",
+    }
+
+    if phone in fake_numbers:
+        return False
+
+    if len(phone) == 11 and phone[2] != "9":
+        return False
+
+    return True
+
+
 # =========================================
 # CADASTRO CLIENTE
 # =========================================
@@ -57,10 +94,20 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(400, "Já existe um usuário com este email")
 
+    phone_clean = only_numbers(payload.phone)
+
+    if not is_valid_brazilian_phone(phone_clean):
+        raise HTTPException(
+            status_code=400,
+            detail="Telefone/WhatsApp inválido. Informe um número real com DDD.",
+        )
+
     user = User(
         name=payload.name.strip(),
         email=payload.email.lower().strip(),
         password_hash=hash_password(payload.password),
+        phone=phone_clean,
+        address_number=payload.address_number.strip() if payload.address_number else None,
         is_active=True,
         is_blocked=False,
         is_admin=False,
@@ -102,10 +149,20 @@ def register_partner(payload: UserRegisterRequest, db: Session = Depends(get_db)
     if existing_user:
         raise HTTPException(400, "Já existe um usuário com este email")
 
+    phone_clean = only_numbers(payload.phone)
+
+    if not is_valid_brazilian_phone(phone_clean):
+        raise HTTPException(
+            status_code=400,
+            detail="Telefone/WhatsApp inválido. Informe um número real com DDD.",
+        )
+
     user = User(
         name=payload.name.strip(),
         email=payload.email.lower().strip(),
         password_hash=hash_password(payload.password),
+        phone=phone_clean,
+        address_number=payload.address_number.strip() if payload.address_number else None,
         is_partner=True,
         partner_code=generate_partner_code(db, payload.name),
         partner_status="active",

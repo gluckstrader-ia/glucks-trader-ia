@@ -126,6 +126,9 @@ def serialize_user(user: User) -> dict:
         "name": user.name,
         "email": user.email,
 
+        "phone": getattr(user, "phone", None),
+        "address_number": getattr(user, "address_number", None),
+
         "is_active": bool(user.is_active),
         "is_blocked": bool(user.is_blocked),
         "is_admin": bool(user.is_admin),

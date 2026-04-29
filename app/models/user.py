@@ -13,6 +13,9 @@ class User(Base):
     email = Column(String(150), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
 
+    phone = Column(String(30), nullable=True)
+    address_number = Column(String(20), nullable=True)
+
     is_active = Column(Boolean, default=False, nullable=False)
     is_blocked = Column(Boolean, default=False, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)

@@ -8,7 +8,12 @@ class UserRegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=120)
     email: EmailStr
     password: str = Field(..., min_length=4, max_length=120)
+
+    phone: str = Field(..., min_length=10, max_length=20)
+    address_number: Optional[str] = Field(default=None, max_length=20)
+
     referred_by_code: Optional[str] = None
+
 
 class UserLoginRequest(BaseModel):
     email: EmailStr
@@ -19,6 +24,9 @@ class UserResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+
+    phone: Optional[str] = None
+    address_number: Optional[str] = None
 
     is_active: bool
     is_blocked: bool
@@ -53,6 +61,7 @@ class ActivateUserRequest(BaseModel):
 
 class BlockUserRequest(BaseModel):
     reason: Optional[str] = None
+
 
 class RenewUserRequest(BaseModel):
     plan: Optional[str] = "mensal"
