@@ -27,14 +27,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./glucks.db")
 
 PAGBANK_TOKEN = os.getenv("PAGBANK_TOKEN", "")
-PAGBANK_ENV = os.getenv("PAGBANK_ENV", "sandbox")
+PAGBANK_ENV = os.getenv("PAGBANK_ENV", "production")
+
+PAGBANK_REDIRECT_URL = os.getenv(
+    "PAGBANK_REDIRECT_URL",
+    "https://www.gluckstrader.com.br/payment-success",
+)
 
 PAGBANK_NOTIFICATION_URL = os.getenv(
     "PAGBANK_NOTIFICATION_URL",
-    "http://127.0.0.1:8000/api/payments/pagbank/webhook"
-)
-
-FRONTEND_SUCCESS_URL = os.getenv(
-    "FRONTEND_SUCCESS_URL",
-    "http://localhost:5173/premium"
+    "https://glucks-trader-ia.onrender.com/api/payments/webhook/pagbank",
 )
