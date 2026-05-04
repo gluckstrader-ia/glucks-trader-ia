@@ -164,8 +164,8 @@ def serialize_user(user: User) -> dict:
         "referred_by_user_id": referred_by_user_id,
         "referred_by_code": referred_by_code,
 
-        "referred_by_code": getattr(user, "referred_by_code", None),
-        "affiliate_code": getattr(user, "referred_by_code", None),
+        #"referred_by_code": getattr(user, "referred_by_code", None),
+        #"affiliate_code": getattr(user, "referred_by_code", None),
 
         "affiliate_code": referred_by_code,
     }
