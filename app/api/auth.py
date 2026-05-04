@@ -102,6 +102,22 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
             detail="Telefone/WhatsApp inválido. Informe um número real com DDD.",
         )
 
+    # 🔥 PEGA O CÓDIGO (FUNCIONA COM QUALQUER NOME)
+    raw_code = payload.referred_by_code or payload.partner_code
+
+    referred_by_code = None
+
+    if raw_code:
+        referred_by_code = (
+            str(raw_code)
+            .strip()
+            .upper()
+            .replace(" ", "")
+            .replace("-", "")
+            .replace("_", "")
+        )
+
+    # 🔥 CRIA USUÁRIO COM O CÓDIGO
     user = User(
         name=payload.name.strip(),
         email=payload.email.lower().strip(),
@@ -114,19 +130,22 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         plan="trial",
         plan_status="active",
         access_expires_at=datetime.now(timezone.utc) + timedelta(days=2),
+
+        # 👇 AGORA SEMPRE SALVA
+        referred_by_code=referred_by_code,
     )
 
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    # VÍNCULO COM PARCEIRO
+    # 🔥 VINCULA AO PARCEIRO (SE EXISTIR)
     try:
-        if payload.referred_by_code:
+        if referred_by_code:
             attach_partner_to_customer_by_code(
                 db=db,
                 customer=user,
-                partner_code=payload.referred_by_code,
+                partner_code=referred_by_code,
             )
     except Exception as e:
         print(f"[AFILIADO ERRO]: {e}")
