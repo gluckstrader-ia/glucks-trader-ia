@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, ForeignKey
 
 from app.database import Base
 
@@ -25,6 +25,12 @@ class User(Base):
     access_expires_at = Column(DateTime, nullable=True)
 
     pagbank_reference = Column(String(150), nullable=True)
+
+    # =========================
+    # 🔥 AFILIADOS (NOVO)
+    # =========================
+    referred_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    referred_by_code = Column(String(50), nullable=True, index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
