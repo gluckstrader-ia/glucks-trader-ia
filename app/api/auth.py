@@ -102,7 +102,7 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
             detail="Telefone/WhatsApp inválido. Informe um número real com DDD.",
         )
 
-    # 🔥 PEGA O CÓDIGO (FUNCIONA COM QUALQUER NOME)
+    # Código digitado manualmente pelo cliente
     raw_code = payload.referred_by_code or payload.partner_code
 
     referred_by_code = None
@@ -117,7 +117,6 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
             .replace("_", "")
         )
 
-    # 🔥 CRIA USUÁRIO COM O CÓDIGO
     user = User(
         name=payload.name.strip(),
         email=payload.email.lower().strip(),
@@ -131,13 +130,21 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         plan_status="active",
         access_expires_at=datetime.now(timezone.utc) + timedelta(days=2),
 
-        # 👇 AGORA SEMPRE SALVA
+        # Salva o código digitado pelo cliente
         referred_by_code=referred_by_code,
     )
 
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    access_token = create_access_token(user)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": serialize_user(user),
+    }
 
     # 🔥 VINCULA AO PARCEIRO (SE EXISTIR)
     try:
