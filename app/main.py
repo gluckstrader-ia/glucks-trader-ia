@@ -21,6 +21,7 @@ from app.api.admin_affiliates import router as admin_affiliates_router
 from app.api.routes.live_room import router as live_room_router
 from app.api.routes.quant import router as quant_router
 
+# Cria as tabelas
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -28,7 +29,10 @@ app = FastAPI(
     version=APP_VERSION,
 )
 
-# Corrige FRONTEND_ORIGINS tanto se vier como string quanto como lista
+# ================================
+# 🔥 CORREÇÃO DEFINITIVA DE CORS
+# ================================
+
 if isinstance(FRONTEND_ORIGINS, str):
     origins = [
         origin.strip()
@@ -36,19 +40,38 @@ if isinstance(FRONTEND_ORIGINS, str):
         if origin.strip()
     ]
 else:
-    origins = FRONTEND_ORIGINS
+    origins = FRONTEND_ORIGINS or []
+
+# 🔥 GARANTE DOMÍNIOS IMPORTANTES
+extra_origins = [
+    "https://www.gluckstrader.com.br",
+    "https://gluckstrader.com.br",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+for origin in extra_origins:
+    if origin not in origins:
+        origins.append(origin)
+
+print("🔥 CORS ORIGINS:", origins)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins,  # 🔥 AGORA LIBERADO CORRETAMENTE
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ================================
+# ROTAS
+# ================================
+
 app.include_router(auth_router, prefix=API_V1_PREFIX)
 app.include_router(analyze_router, prefix=API_V1_PREFIX)
 app.include_router(radar_router, prefix=API_V1_PREFIX)
+
 app.include_router(payments_router, prefix="/api")
 app.include_router(news_router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
@@ -60,6 +83,9 @@ app.include_router(admin_affiliates_router, prefix="/api")
 app.include_router(live_room_router, prefix=API_V1_PREFIX)
 app.include_router(quant_router, prefix=API_V1_PREFIX)
 
+# ================================
+# HEALTH / ROOT
+# ================================
 
 @app.get("/")
 def root():
