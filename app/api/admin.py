@@ -50,6 +50,8 @@ def list_users(
             "is_admin": user.is_admin,
             "plan": user.plan,
             "plan_status": user.plan_status,
+            "referred_by_code": getattr(user, "referred_by_code", None),
+            "affiliate_code": getattr(user, "referred_by_code", None),
             "access_expires_at": user.access_expires_at.isoformat() if user.access_expires_at else None,
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None,
