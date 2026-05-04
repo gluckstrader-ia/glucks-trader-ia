@@ -146,25 +146,6 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)):
         "user": serialize_user(user),
     }
 
-    # 🔥 VINCULA AO PARCEIRO (SE EXISTIR)
-    try:
-        if referred_by_code:
-            attach_partner_to_customer_by_code(
-                db=db,
-                customer=user,
-                partner_code=referred_by_code,
-            )
-    except Exception as e:
-        print(f"[AFILIADO ERRO]: {e}")
-
-    access_token = create_access_token(user)
-
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": serialize_user(user),
-    }
-
 
 # =========================================
 # CADASTRO PARCEIRO
