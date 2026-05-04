@@ -35,6 +35,12 @@ from app.schemas_auth import (
     UserStatusUpdateResponse,
 )
 
+from app.models import User
+
+print("DEBUG USER MODEL FILE:", User.__module__)
+print("DEBUG USER HAS referred_by_code:", hasattr(User, "referred_by_code"))
+print("DEBUG USER HAS referred_by_user_id:", hasattr(User, "referred_by_user_id"))
+
 router = APIRouter(tags=["auth"])
 
 PLAN_DURATIONS = {
