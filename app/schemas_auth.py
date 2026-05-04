@@ -12,7 +12,11 @@ class UserRegisterRequest(BaseModel):
     phone: str = Field(..., min_length=10, max_length=20)
     address_number: Optional[str] = Field(default=None, max_length=20)
 
+    # Código digitado manualmente pelo cliente no cadastro
     referred_by_code: Optional[str] = None
+
+    # Aceita também este nome para compatibilidade com o frontend
+    partner_code: Optional[str] = None
 
 
 class UserLoginRequest(BaseModel):
@@ -39,6 +43,18 @@ class UserResponse(BaseModel):
 
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
+
+    # Dados de parceiro/afiliado
+    is_partner: Optional[bool] = False
+    partner_code: Optional[str] = None
+    partner_status: Optional[str] = None
+    partner_pix_key: Optional[str] = None
+    partner_pix_type: Optional[str] = None
+
+    # Código do afiliado que indicou o cliente
+    referred_by_user_id: Optional[int] = None
+    referred_by_code: Optional[str] = None
+    affiliate_code: Optional[str] = None
 
     class Config:
         from_attributes = True
