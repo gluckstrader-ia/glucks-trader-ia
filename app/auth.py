@@ -163,4 +163,6 @@ def serialize_user(user: User) -> dict:
 
         "referred_by_user_id": referred_by_user_id,
         "referred_by_code": referred_by_code,
+
+        "affiliate_code": referred_by_code,
     }
