@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, ForeignKey
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 
 from app.database import Base
 
@@ -26,9 +26,14 @@ class User(Base):
 
     pagbank_reference = Column(String(150), nullable=True)
 
-    # =========================
-    # 🔥 AFILIADOS (NOVO)
-    # =========================
+    # Afiliados / parceiros
+    is_partner = Column(Boolean, default=False, nullable=False)
+    partner_code = Column(String(50), unique=True, index=True, nullable=True)
+    partner_status = Column(String(30), default="active", nullable=False)
+    partner_pix_key = Column(String(150), nullable=True)
+    partner_pix_type = Column(String(30), nullable=True)
+
+    # Cliente indicado por afiliado
     referred_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     referred_by_code = Column(String(50), nullable=True, index=True)
 
