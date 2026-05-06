@@ -100,6 +100,24 @@ def create_checkout(
     if PAGBANK_NOTIFICATION_URL:
         payload_pagbank["notification_urls"] = [PAGBANK_NOTIFICATION_URL]
 
+    # ==============================
+    # LOG REQUEST PAGBANK
+    # ==============================
+
+    print("\n====== REQUEST PAGBANK ======")
+    print("AMBIENTE:", PAGBANK_ENV)
+    print("URL:", url)
+    print("METHOD: POST")
+
+    print("HEADERS:", {
+        "Authorization": "Bearer ***TOKEN_OCULTO***",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    })
+
+    print("BODY:", payload_pagbank)
+    print("=============================\n")
+
     try:
         response = requests.post(
             url,
@@ -112,10 +130,20 @@ def create_checkout(
         db.commit()
 
         print("Erro de conexão com PagBank:", str(exc))
+
         raise HTTPException(
             status_code=500,
             detail="Erro de conexão com o PagBank",
         )
+
+    # ==============================
+    # LOG RESPONSE PAGBANK
+    # ==============================
+
+    print("\n====== RESPONSE PAGBANK ======")
+    print("STATUS:", response.status_code)
+    print("BODY:", response.text)
+    print("==============================\n")
 
     if response.status_code not in [200, 201]:
         payment.status = "error"
