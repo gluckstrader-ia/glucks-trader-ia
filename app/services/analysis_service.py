@@ -15,6 +15,7 @@ from app.indicators import (
     calculate_atr,
 )
 from app.services.moving_averages import build_moving_averages
+from app.services.technical_indicators import build_technical_indicators
 
 
 def validate_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -787,6 +788,7 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "resistances": resistances,
 
             "moving_averages": build_moving_averages(closes),
+            "technical_indicators": build_technical_indicators(df),
         },
 
         "smc": smc_data,
