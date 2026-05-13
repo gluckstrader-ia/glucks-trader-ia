@@ -14,6 +14,7 @@ from app.indicators import (
     calculate_rsi,
     calculate_atr,
 )
+from app.services.moving_averages import build_moving_averages
 
 
 def validate_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -557,6 +558,13 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
     df = clean_df
     print(f"Indicadores válidos usando colunas: {used_cols}")
 
+    closes = (
+        df["close"]
+        .dropna()
+        .astype(float)
+        .tolist()
+    )
+
     smc_data = calculate_smc(df)
     harmonics_data = calculate_harmonics(df)
     wegd_data = calculate_wegd(df)
@@ -777,6 +785,8 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
             "ema21": round(ema21, 6),
             "supports": supports,
             "resistances": resistances,
+
+            "moving_averages": build_moving_averages(closes),
         },
 
         "smc": smc_data,
