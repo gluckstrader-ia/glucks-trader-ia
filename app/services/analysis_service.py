@@ -724,7 +724,20 @@ def analyze_asset(asset: str, asset_type: str, timeframe: str) -> Dict[str, Any]
         sell_probability=sell_probability,
     )
 
-    if filter_result["veto"]:
+    if sell_probability > buy_probability:
+        dominant_direction = "VENDA"
+        dominant_probability = sell_probability
+    elif buy_probability > sell_probability:
+        dominant_direction = "COMPRA"
+        dominant_probability = buy_probability
+    else:
+        dominant_direction = "NEUTRO"
+        dominant_probability = neutral_probability
+
+    if dominant_direction in ["COMPRA", "VENDA"] and dominant_probability >= 55:
+        direction = dominant_direction
+        confidence = round(dominant_probability, 1)
+    elif filter_result["veto"]:
         direction = "NEUTRO"
         confidence = max(30, min(55, confidence - 15))
 
