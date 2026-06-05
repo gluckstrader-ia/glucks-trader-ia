@@ -21,6 +21,7 @@ from app.api.admin_affiliates import router as admin_affiliates_router
 from app.api.routes.live_room import router as live_room_router
 from app.api.routes.quant import router as quant_router
 from app.api.routes import community
+from app.api.routes import academy
 
 # Cria as tabelas
 Base.metadata.create_all(bind=engine)
@@ -84,6 +85,7 @@ app.include_router(admin_affiliates_router, prefix="/api")
 app.include_router(live_room_router, prefix=API_V1_PREFIX)
 app.include_router(quant_router, prefix=API_V1_PREFIX)
 app.include_router(community.router, prefix="/api")
+app.include_router(academy.router, prefix="/api")
 
 # ================================
 # HEALTH / ROOT
