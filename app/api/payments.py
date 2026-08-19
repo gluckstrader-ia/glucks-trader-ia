@@ -22,7 +22,6 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 PLANS = {
     "monthly": {"label": "Mensal", "amount": 197.0, "days": 30},
     "quarterly": {"label": "Trimestral", "amount": 497.0, "days": 90},
-    "semiannual": {"label": "Semestral", "amount": 897.0, "days": 180},
 }
 
 
