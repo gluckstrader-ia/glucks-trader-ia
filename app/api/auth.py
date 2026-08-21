@@ -118,7 +118,7 @@ def register(
             detail="Telefone/WhatsApp inválido. Informe um número real com DDD.",
         )
 
-    # Código digitado manualmente pelo cliente
+    # Código digitado pelo cliente ou vindo do link ?ref=
     raw_code = payload.referred_by_code or payload.partner_code
 
     referred_by_code = None
@@ -136,19 +136,7 @@ def register(
     # =========================================
     # TRIAL DE 5 PREGÕES DA B3
     # =========================================
-    #
-    # A expiração não é mais calculada em dias corridos.
-    #
-    # A função calculate_trial_expiration:
-    #
-    # - considera 5 pregões reais;
-    # - ignora sábado e domingo;
-    # - ignora dias sem sessão no calendário BVMF;
-    # - considera o horário de abertura da bolsa;
-    # - se o usuário se cadastrar depois da abertura,
-    #   o pregão parcial não consome um dos 5 pregões completos;
-    # - encerra o acesso no fechamento do 5º pregão.
-    #
+
     trial_expires_at = calculate_trial_expiration(
         started_at=datetime.now(timezone.utc),
         sessions=5,
@@ -171,7 +159,7 @@ def register(
         plan_status="active",
         access_expires_at=trial_expires_at,
 
-        # Salva o código digitado pelo cliente
+        # Guarda o código recebido pelo link do parceiro
         referred_by_code=referred_by_code,
     )
 
@@ -179,58 +167,33 @@ def register(
     db.commit()
     db.refresh(user)
 
-    access_token = create_access_token(user)
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": serialize_user(user),
-    }
+    # =========================================
+    # VINCULA CLIENTE AO PARCEIRO
+    # =========================================
+    #
+    # Exemplo:
+    #
+    # Cliente entra:
+    # /cadastro?ref=PARCEI3762
+    #
+    # Salva:
+    # referred_by_code = PARCEI3762
+    #
+    # Agora transforma em:
+    # referred_by_user_id = ID do parceiro
+    #
 
-
-# =========================================
-# CADASTRO PARCEIRO
-# =========================================
-@router.post("/auth/register-partner", response_model=AuthResponse)
-def register_partner(
-    payload: UserRegisterRequest,
-    db: Session = Depends(get_db),
-):
-    existing_user = get_user_by_email(db, payload.email)
-
-    if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Já existe um usuário com este email",
+    if referred_by_code:
+        attach_partner_to_customer_by_code(
+            db,
+            user,
+            referred_by_code,
         )
 
-    phone_clean = only_numbers(payload.phone)
+        db.commit()
+        db.refresh(user)
 
-    if not is_valid_brazilian_phone(phone_clean):
-        raise HTTPException(
-            status_code=400,
-            detail="Telefone/WhatsApp inválido. Informe um número real com DDD.",
-        )
-
-    user = User(
-        name=payload.name.strip(),
-        email=payload.email.lower().strip(),
-        password_hash=hash_password(payload.password),
-        phone=phone_clean,
-        address_number=(
-            payload.address_number.strip()
-            if payload.address_number
-            else None
-        ),
-        is_partner=True,
-        partner_code=generate_partner_code(db, payload.name),
-        partner_status="active",
-        is_active=True,
-    )
-
-    db.add(user)
-    db.commit()
-    db.refresh(user)
 
     access_token = create_access_token(user)
 
