@@ -118,9 +118,9 @@ def get_partner_dashboard(
         AffiliateMaterial.is_active == True
     ).order_by(AffiliateMaterial.created_at.desc()).all()
 
-    return {
+    return {    
         "partner_code": current_user.partner_code,
-        "partner_link": f"https://www.gluckstrader.com.br/parceiros?ref={current_user.partner_code}",
+        "partner_link": f"https://www.gluckstrader.com.br/cadastro?ref={current_user.partner_code}",
         "pix_key": current_user.partner_pix_key,
         "pix_type": current_user.partner_pix_type,
         "metrics": {
