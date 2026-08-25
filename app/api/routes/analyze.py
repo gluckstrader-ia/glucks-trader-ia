@@ -9,13 +9,17 @@ from app.models import User
 from app.services.analysis_history_service import save_analysis
 from app.services.analysis_service import analyze_asset
 from app.services.ai_brain_service import build_ai_brain
-from app.services.ai_memory_service import store_signal_memory
+from app.services.ai_memory_service import (
+    store_signal_memory,
+    analyze_memory_context,
+)
 
 
 router = APIRouter(tags=["analyze"])
 
 
 class AnalyzeRequest(BaseModel):
+
     asset: str
 
     asset_type: Literal[
@@ -59,32 +63,11 @@ async def analyze(
         get_current_active_user
     ),
 ):
-    """
-    Endpoint principal de análise de mercado.
-
-    Fluxo:
-
-    1. Normaliza o tipo de ativo.
-    2. Executa o motor de análise existente.
-    3. Executa o AI Brain sobre o resultado.
-    4. Adiciona a interpretação ao payload.
-    5. Salva a análise no histórico.
-    6. Retorna o resultado completo ao frontend.
-
-    O AI Brain não altera:
-    - direção original;
-    - entrada;
-    - stop;
-    - alvos;
-    - probabilidade do motor existente.
-    """
 
     try:
+
         asset_type_normalized = payload.asset_type
 
-        # ==========================================
-        # NORMALIZAÇÃO DOS TIPOS DE ATIVO
-        # ==========================================
 
         if asset_type_normalized == "indices":
             asset_type_normalized = "index"
@@ -102,9 +85,6 @@ async def analyze(
         }:
             asset_type_normalized = "b3"
 
-        elif asset_type_normalized == "future_br":
-            asset_type_normalized = "future_br"
-
         elif asset_type_normalized in {
             "future_us",
             "futuro_us",
@@ -118,9 +98,6 @@ async def analyze(
         }:
             asset_type_normalized = "commodity"
 
-        # ==========================================
-        # MOTOR PRINCIPAL DE ANÁLISE
-        # ==========================================
 
         result = analyze_asset(
             asset=payload.asset,
@@ -128,39 +105,63 @@ async def analyze(
             timeframe=payload.timeframe,
         )
 
+
         # ==========================================
         # AI BRAIN
         # ==========================================
-        #
-        # O AI Brain interpreta o resultado pronto.
-        #
-        # Ele NÃO altera o sinal original.
-        # Ele apenas adiciona:
-        #
-        # - score de qualidade;
-        # - confiança interpretada;
-        # - classificação;
-        # - motivos;
-        # - alertas.
-        #
 
-        ai_brain = build_ai_brain(result)
+        ai_brain = build_ai_brain(
+            result
+        )
 
         result["ai_brain"] = ai_brain
 
+
         # ==========================================
-        # AI MEMORY LAYER
+        # AI MEMORY CONTEXT V1.1
         # ==========================================
         #
-        # Salva o contexto da análise para aprendizado
-        # futuro da IA.
+        # Consulta histórico.
+        # Não altera sinal ou decisão.
         #
-        # Não interfere na decisão atual.
-        #
+
+        memory_context = analyze_memory_context(
+            asset=result.get(
+                "asset",
+                payload.asset,
+            ),
+
+            timeframe=result.get(
+                "timeframe",
+                payload.timeframe,
+            ),
+
+            direction=result.get(
+                "final_signal",
+                {},
+            ).get(
+                "direction",
+                "NEUTRO",
+            ),
+
+            module_alignment=ai_brain.get(
+                "module_alignment",
+                "NEUTRO",
+            ),
+        )
+
+
+        result["memory_context"] = memory_context
+
+
+        # ==========================================
+        # AI MEMORY STORAGE
+        # ==========================================
 
         store_signal_memory(
             result
         )
+
 
         # ==========================================
         # HISTÓRICO
@@ -169,21 +170,22 @@ async def analyze(
         db = SessionLocal()
 
         try:
+
             save_analysis(
                 db,
                 result,
             )
 
         finally:
+
             db.close()
 
-        # ==========================================
-        # RESPOSTA PARA O FRONTEND
-        # ==========================================
 
         return result
 
+
     except ValueError as e:
+
         print(
             f"ERRO DE VALIDAÇÃO NO /api/analyze: {e}"
         )
@@ -193,7 +195,9 @@ async def analyze(
             detail=str(e),
         )
 
+
     except Exception as e:
+
         print(
             f"ERRO NO /api/analyze: {e}"
         )
