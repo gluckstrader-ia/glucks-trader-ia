@@ -43,7 +43,7 @@ def module_score(
 
 
 # =====================================================
-# SCORE PRINCIPAL
+# AI SCORE
 # =====================================================
 
 def calculate_ai_score(
@@ -84,7 +84,6 @@ def calculate_ai_score(
         ) * 0.15
     )
 
-
     return round(
         clamp(score),
         1,
@@ -92,7 +91,7 @@ def calculate_ai_score(
 
 
 # =====================================================
-# QUALIDADE OPERACIONAL
+# TRADE QUALITY
 # =====================================================
 
 def calculate_trade_quality(
@@ -107,7 +106,6 @@ def calculate_trade_quality(
         "modules",
         {},
     )
-
 
     final_signal = data.get(
         "final_signal",
@@ -127,22 +125,19 @@ def calculate_trade_quality(
         quality -= 15
 
 
-    smc = module_score(
+    if module_score(
         modules,
         "smc",
-    )
+    ) < 50:
 
-    probability = module_score(
-        modules,
-        "probabilistic",
-    )
-
-
-    if smc < 50:
         quality -= 10
 
 
-    if probability < 55:
+    if module_score(
+        modules,
+        "probabilistic",
+    ) < 55:
+
         quality -= 10
 
 
@@ -153,7 +148,7 @@ def calculate_trade_quality(
 
 
 # =====================================================
-# DETECÇÃO DE CONFLITOS
+# CONFLITOS
 # =====================================================
 
 def detect_market_conflict(
@@ -161,6 +156,7 @@ def detect_market_conflict(
 ) -> Dict[str, Any]:
 
     conflicts = []
+
 
     direction = str(
         data.get(
@@ -182,15 +178,9 @@ def detect_market_conflict(
     )
 
 
-    market_context = data.get(
+    context = data.get(
         "market_context",
         {},
-    )
-
-
-    technical = module_score(
-        modules,
-        "technical",
     )
 
 
@@ -203,7 +193,7 @@ def detect_market_conflict(
 
 
     zone = str(
-        market_context.get(
+        context.get(
             "zone_label",
             "",
         )
@@ -213,10 +203,11 @@ def detect_market_conflict(
 
     if direction == "COMPRA":
 
-        if smc_bias in {
+        if smc_bias in [
             "BEARISH",
             "BAIXA",
-        }:
+        ]:
+
             conflicts.append(
                 "SMC divergente da compra"
             )
@@ -224,10 +215,11 @@ def detect_market_conflict(
 
     if direction == "VENDA":
 
-        if smc_bias in {
+        if smc_bias in [
             "BULLISH",
             "ALTA",
-        }:
+        ]:
+
             conflicts.append(
                 "SMC divergente da venda"
             )
@@ -240,10 +232,13 @@ def detect_market_conflict(
         )
 
 
-    if technical < 60:
+    if module_score(
+        modules,
+        "timing",
+    ) < 55:
 
         conflicts.append(
-            "Força técnica insuficiente"
+            "Timing sem confirmação forte"
         )
 
 
@@ -254,7 +249,9 @@ def detect_market_conflict(
 
         "conflicts":
             conflicts,
+
     }
+
 
 
 # =====================================================
@@ -262,11 +259,10 @@ def detect_market_conflict(
 # =====================================================
 
 def calculate_alignment(
-    conflict_detected: bool,
     conflicts: List[str],
 ):
 
-    if not conflict_detected:
+    if len(conflicts) == 0:
         return "ALINHADO"
 
 
@@ -279,7 +275,107 @@ def calculate_alignment(
 
 
 # =====================================================
-# EXPLICAÇÃO DA IA
+# ESTADO OPERACIONAL
+# =====================================================
+
+def calculate_decision_state(
+    quality: float,
+    conflict: bool,
+):
+
+    if quality < 50:
+
+        return {
+
+            "state":
+                "BLOCKED",
+
+            "color":
+                "RED",
+
+        }
+
+
+    if conflict or quality < 75:
+
+        return {
+
+            "state":
+                "WAIT_CONFIRMATION",
+
+            "color":
+                "YELLOW",
+
+        }
+
+
+    return {
+
+        "state":
+            "READY",
+
+        "color":
+            "GREEN",
+
+    }
+
+
+
+# =====================================================
+# NÍVEL DE CONFIANÇA
+# =====================================================
+
+def calculate_confidence_level(
+    quality: float,
+):
+
+    if quality >= 80:
+        return "ALTA"
+
+
+    if quality >= 55:
+        return "MODERADA"
+
+
+    return "BAIXA"
+
+
+
+# =====================================================
+# MENSAGEM PARA USUÁRIO
+# =====================================================
+
+def generate_user_message(
+    state: str,
+    conflicts: List[str],
+):
+
+    if state == "READY":
+
+        return (
+            "Cenário alinhado. "
+            "A oportunidade apresenta boa qualidade."
+        )
+
+
+    if state == "WAIT_CONFIRMATION":
+
+        return (
+            "Existe oportunidade identificada, "
+            "porém são necessárias confirmações "
+            "antes da entrada."
+        )
+
+
+    return (
+        "A qualidade do cenário está abaixo "
+        "do recomendado para operação."
+    )
+
+
+
+# =====================================================
+# EXPLICAÇÃO
 # =====================================================
 
 def generate_ai_explanation(
@@ -297,8 +393,8 @@ def generate_ai_explanation(
 
         return (
             f"O modelo identificou {direction}, "
-            "porém existem conflitos que reduzem "
-            "a qualidade da oportunidade."
+            "mas existem fatores reduzindo "
+            "a qualidade da entrada."
         )
 
 
@@ -310,48 +406,10 @@ def generate_ai_explanation(
 
 
 # =====================================================
-# RECOMENDAÇÃO
-# =====================================================
-
-def generate_action(
-    quality: float,
-):
-
-    if quality < 55:
-
-        return {
-
-            "trading_action":
-                "AGUARDAR",
-
-            "entry_allowed":
-                False,
-
-            "next_action":
-                "Esperar confirmação do fluxo",
-
-        }
-
-
-    return {
-
-        "trading_action":
-            "MONITORAR ENTRADA",
-
-        "entry_allowed":
-            True,
-
-        "next_action":
-            "Acompanhar confirmação",
-
-    }
-
-
-# =====================================================
 # FATORES
 # =====================================================
 
-def generate_positive_factors(
+def positive_factors(
     data: Dict[str, Any],
 ):
 
@@ -387,7 +445,7 @@ def generate_positive_factors(
 
 
 
-def generate_negative_factors(
+def negative_factors(
     conflicts: List[str],
 ):
 
@@ -419,13 +477,13 @@ def build_ai_brain(
 
 
     alignment = calculate_alignment(
-        conflict["conflict_detected"],
-        conflict["conflicts"],
+        conflict["conflicts"]
     )
 
 
-    action = generate_action(
-        trade_quality
+    decision = calculate_decision_state(
+        trade_quality,
+        conflict["conflict_detected"],
     )
 
 
@@ -448,11 +506,32 @@ def build_ai_brain(
 
 
         "trading_action":
-            action["trading_action"],
+            (
+                "AGUARDAR"
+                if decision["state"]
+                != "READY"
+                else
+                "MONITORAR ENTRADA"
+            ),
 
 
         "entry_allowed":
-            action["entry_allowed"],
+            decision["state"]
+            == "READY",
+
+
+        "confidence_level":
+            calculate_confidence_level(
+                trade_quality
+            ),
+
+
+        "decision_state":
+            decision["state"],
+
+
+        "decision_color":
+            decision["color"],
 
 
         "market_alignment":
@@ -460,7 +539,9 @@ def build_ai_brain(
 
 
         "conflict_detected":
-            conflict["conflict_detected"],
+            conflict[
+                "conflict_detected"
+            ],
 
 
         "ai_explanation":
@@ -470,19 +551,32 @@ def build_ai_brain(
             ),
 
 
+        "user_message":
+            generate_user_message(
+                decision["state"],
+                conflict["conflicts"],
+            ),
+
+
         "positive_factors":
-            generate_positive_factors(
+            positive_factors(
                 data
             ),
 
 
         "negative_factors":
-            generate_negative_factors(
+            negative_factors(
                 conflict["conflicts"]
             ),
 
 
         "next_action":
-            action["next_action"],
+            (
+                "Aguardar confirmação do fluxo"
+                if decision["state"]
+                != "READY"
+                else
+                "Executar gestão da entrada"
+            ),
 
     }
