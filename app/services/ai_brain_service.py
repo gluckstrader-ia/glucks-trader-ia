@@ -43,6 +43,7 @@ def module_score(
     )
 
 
+
 # =====================================================
 # AI SCORE
 # =====================================================
@@ -84,7 +85,6 @@ def calculate_ai_score(
             modules,
             "timing",
         ) * 0.15
-
     )
 
 
@@ -102,6 +102,7 @@ def calculate_ai_score(
 def calculate_trade_quality(
     data: Dict[str, Any],
 ) -> float:
+
 
     quality = calculate_ai_score(
         data
@@ -183,15 +184,11 @@ def calculate_signal_confidence(
 
 
     if confidence >= 80:
-
         return "ALTA"
 
 
-
     if confidence >= 60:
-
         return "MODERADA"
-
 
 
     return "BAIXA"
@@ -207,15 +204,11 @@ def calculate_trade_quality_label(
 ):
 
     if quality >= 75:
-
         return "ALTA"
 
 
-
     if quality >= 55:
-
         return "MODERADA"
-
 
 
     return "BAIXA"
@@ -223,10 +216,10 @@ def calculate_trade_quality_label(
 
 
 # =====================================================
-# DETECÇÃO DE CONFLITOS
+# CONFLITOS REAIS
 # =====================================================
 
-def detect_market_conflict(
+def detect_market_conflicts(
     data: Dict[str, Any],
 ):
 
@@ -241,36 +234,15 @@ def detect_market_conflict(
     ).upper()
 
 
-    modules = data.get(
-        "modules",
-        {},
-    )
-
-
     smc = data.get(
         "smc",
         {},
     )
 
 
-    context = data.get(
-        "market_context",
-        {},
-    )
-
-
-
     smc_bias = str(
         smc.get(
             "bias",
-            "",
-        )
-    ).upper()
-
-
-    zone = str(
-        context.get(
-            "zone_label",
             "",
         )
     ).upper()
@@ -303,10 +275,62 @@ def detect_market_conflict(
 
 
 
+    return {
+
+        "conflict_detected":
+            len(conflicts) > 0,
+
+        "conflicts":
+            conflicts,
+
+    }
+
+
+
+# =====================================================
+# ALERTAS OPERACIONAIS
+# =====================================================
+
+def detect_market_warnings(
+    data: Dict[str, Any],
+):
+
+    warnings = []
+
+
+    modules = data.get(
+        "modules",
+        {},
+    )
+
+
+    context = data.get(
+        "market_context",
+        {},
+    )
+
+
+    zone = str(
+        context.get(
+            "zone_label",
+            "",
+        )
+    ).upper()
+
+
+
     if zone == "PREMIUM":
 
-        conflicts.append(
+        warnings.append(
             "Preço em região Premium"
+        )
+
+
+
+    if zone == "DISCOUNT":
+
+        warnings.append(
+            "Preço em região Discount"
         )
 
 
@@ -316,7 +340,7 @@ def detect_market_conflict(
         "timing",
     ) < 55:
 
-        conflicts.append(
+        warnings.append(
             "Timing sem confirmação forte"
         )
 
@@ -324,12 +348,11 @@ def detect_market_conflict(
 
     return {
 
-        "conflict_detected":
-            len(conflicts) > 0,
+        "warning_detected":
+            len(warnings) > 0,
 
-
-        "conflicts":
-            conflicts,
+        "warnings":
+            warnings,
 
     }
 
@@ -348,11 +371,9 @@ def calculate_alignment(
         return "ALINHADO"
 
 
-
     if len(conflicts) >= 3:
 
         return "CONFLITANTE"
-
 
 
     return "PARCIAL"
@@ -360,7 +381,7 @@ def calculate_alignment(
 
 
 # =====================================================
-# DECISÃO OPERACIONAL
+# DECISÃO
 # =====================================================
 
 def calculate_decision_state(
@@ -409,7 +430,7 @@ def calculate_decision_state(
 
 
 # =====================================================
-# EXPLICAÇÃO
+# EXPLICAÇÕES
 # =====================================================
 
 def generate_ai_explanation(
@@ -430,10 +451,8 @@ def generate_ai_explanation(
 
         return (
             f"O modelo identificou {direction}, "
-            "porém existem conflitos reduzindo "
-            "a qualidade da oportunidade."
+            "porém existem conflitos entre os módulos."
         )
-
 
 
     return (
@@ -443,12 +462,9 @@ def generate_ai_explanation(
 
 
 
-# =====================================================
-# MENSAGEM USUÁRIO
-# =====================================================
-
 def generate_user_message(
     state: str,
+    warnings: List[str],
     conflicts: List[str],
     data: Dict[str, Any],
 ):
@@ -466,25 +482,39 @@ def generate_user_message(
 
         return (
             f"Viés {direction} identificado. "
-            "O cenário apresenta qualidade "
-            "suficiente para acompanhamento."
+            "Cenário com qualidade operacional."
         )
 
 
 
     if state == "WAIT_CONFIRMATION":
 
+        if conflicts:
+
+            return (
+                f"Viés {direction} identificado, "
+                "porém existem conflitos entre modelos."
+            )
+
+
+        if warnings:
+
+            return (
+                f"Viés {direction} identificado, "
+                "aguardar confirmação devido aos alertas."
+            )
+
+
+
         return (
-            f"Viés {direction} identificado, "
-            "porém existem fatores de conflito. "
-            "Aguardar confirmação antes da entrada."
+            "Aguardar confirmação do fluxo."
         )
 
 
 
     return (
-        "A qualidade do cenário está abaixo "
-        "do recomendado para operação."
+        "Cenário abaixo do recomendado "
+        "para operação."
     )
 
 
@@ -529,14 +559,6 @@ def positive_factors(
 
 
 
-def negative_factors(
-    conflicts: List[str],
-):
-
-    return conflicts
-
-
-
 # =====================================================
 # FUNÇÃO PRINCIPAL
 # =====================================================
@@ -544,6 +566,7 @@ def negative_factors(
 def build_ai_brain(
     data: Dict[str, Any],
 ):
+
 
     ai_score = calculate_ai_score(
         data
@@ -555,24 +578,23 @@ def build_ai_brain(
     )
 
 
-    conflict = detect_market_conflict(
+    conflicts = detect_market_conflicts(
         data
     )
 
 
-    alignment = calculate_alignment(
-        conflict["conflicts"]
+    warnings = detect_market_warnings(
+        data
     )
 
 
     decision = calculate_decision_state(
         trade_quality,
-        conflict["conflict_detected"],
+        conflicts["conflict_detected"],
     )
 
 
     return {
-
 
         "ai_score":
             ai_score,
@@ -604,8 +626,7 @@ def build_ai_brain(
         "trading_action":
             (
                 "AGUARDAR"
-                if decision["state"]
-                != "READY"
+                if decision["state"] != "READY"
                 else
                 "MONITORAR ENTRADA"
             ),
@@ -625,24 +646,39 @@ def build_ai_brain(
 
 
         "market_alignment":
-            alignment,
+            calculate_alignment(
+                conflicts["conflicts"]
+            ),
 
 
         "conflict_detected":
-            conflict["conflict_detected"],
+            conflicts["conflict_detected"],
+
+
+        "conflicts":
+            conflicts["conflicts"],
+
+
+        "warning_detected":
+            warnings["warning_detected"],
+
+
+        "warnings":
+            warnings["warnings"],
 
 
         "ai_explanation":
             generate_ai_explanation(
                 data,
-                conflict["conflicts"],
+                conflicts["conflicts"],
             ),
 
 
         "user_message":
             generate_user_message(
                 decision["state"],
-                conflict["conflicts"],
+                warnings["warnings"],
+                conflicts["conflicts"],
                 data,
             ),
 
@@ -654,16 +690,17 @@ def build_ai_brain(
 
 
         "negative_factors":
-            negative_factors(
-                conflict["conflicts"]
+            (
+                conflicts["conflicts"]
+                +
+                warnings["warnings"]
             ),
 
 
         "next_action":
             (
                 "Aguardar confirmação do fluxo"
-                if decision["state"]
-                != "READY"
+                if decision["state"] != "READY"
                 else
                 "Executar gestão da entrada"
             ),
