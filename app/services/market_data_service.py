@@ -297,3 +297,24 @@ def get_market_data(
             print(f"[FALLBACK] yfinance falhou para {asset}: {e}")
 
     raise ValueError(f"Não foi possível obter dados para {asset} ({asset_type}) no timeframe {timeframe}")
+
+def get_current_price(
+    asset: str,
+    asset_type: str,
+    timeframe: str = "5m",
+) -> float:
+
+    df = get_market_data(
+        asset=asset,
+        asset_type=asset_type,
+        timeframe=timeframe,
+    )
+
+    if df.empty:
+        raise ValueError(
+            f"Sem preço disponível para {asset}"
+        )
+
+    return float(
+        df.iloc[-1]["close"]
+    )
