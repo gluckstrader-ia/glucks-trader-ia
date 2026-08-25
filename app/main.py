@@ -16,12 +16,14 @@ from app.api.admin import router as admin_router
 from app.api.market_data import router as market_data_router
 from app.api.routes.analysis_history import router as analysis_history_router
 from app import models_affiliate
+from app import models
 from app.api.partners import router as partners_router
 from app.api.admin_affiliates import router as admin_affiliates_router
 from app.api.routes.live_room import router as live_room_router
 from app.api.routes.quant import router as quant_router
 from app.api.routes import community
 from app.api.routes import academy
+
 
 # Cria as tabelas
 Base.metadata.create_all(bind=engine)
