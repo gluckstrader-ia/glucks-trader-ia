@@ -14,6 +14,7 @@ from app.services.ai_memory_service import (
     analyze_memory_context,
 )
 from app.services.ai_memory_database_service import save_ai_memory
+from app.services.ai_memory_context_service import build_memory_context
 
 
 router = APIRouter(tags=["analyze"])
@@ -116,6 +117,25 @@ async def analyze(
         )
 
         result["ai_brain"] = ai_brain
+
+        # ==========================================
+        # AI MEMORY CONTEXT
+        # ==========================================
+
+        db = SessionLocal()
+
+        try:
+
+            memory_context = build_memory_context(
+                db,
+                result,
+            )
+
+            result["memory_context"] = memory_context
+
+        finally:
+
+            db.close()
 
 
         # ==========================================
