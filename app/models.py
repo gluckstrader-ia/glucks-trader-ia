@@ -8,6 +8,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -33,7 +34,11 @@ class User(Base):
 
     access_expires_at = Column(DateTime(timezone=True), nullable=True)
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
     updated_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -50,18 +55,47 @@ class User(Base):
 class AnalysisHistory(Base):
     __tablename__ = "analysis_history"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
 
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False,
+    )
 
-    asset = Column(String(50), nullable=False)
-    asset_type = Column(String(50), nullable=False)
-    timeframe = Column(String(20), nullable=False)
+    asset = Column(
+        String(50),
+        nullable=False,
+    )
 
-    signal = Column(String(50), nullable=True)
-    confidence = Column(Float, nullable=True)
+    asset_type = Column(
+        String(50),
+        nullable=False,
+    )
 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    timeframe = Column(
+        String(20),
+        nullable=False,
+    )
+
+    signal = Column(
+        String(50),
+        nullable=True,
+    )
+
+    confidence = Column(
+        Float,
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
 
     user = relationship("User")
 
@@ -69,7 +103,11 @@ class AnalysisHistory(Base):
 class CommunityMessage(Base):
     __tablename__ = "community_messages"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
 
     user_id = Column(
         Integer,
@@ -78,7 +116,10 @@ class CommunityMessage(Base):
         index=True,
     )
 
-    user_name = Column(String(255), nullable=False)
+    user_name = Column(
+        String(255),
+        nullable=False,
+    )
 
     channel = Column(
         String(50),
@@ -92,9 +133,15 @@ class CommunityMessage(Base):
         default="text",
     )
 
-    content = Column(Text, nullable=True)
+    content = Column(
+        Text,
+        nullable=True,
+    )
 
-    media_url = Column(Text, nullable=True)
+    media_url = Column(
+        Text,
+        nullable=True,
+    )
 
     created_at = Column(
         DateTime(timezone=True),
@@ -104,4 +151,125 @@ class CommunityMessage(Base):
     user = relationship(
         "User",
         back_populates="community_messages",
+    )
+
+
+# =====================================================
+# AI MEMORY LAYER V2
+# =====================================================
+
+class AISignalMemory(Base):
+
+    __tablename__ = "ai_signal_memory"
+
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True,
+    )
+
+
+    asset = Column(
+        String(50),
+        nullable=False,
+        index=True,
+    )
+
+
+    asset_type = Column(
+        String(50),
+        nullable=False,
+    )
+
+
+    timeframe = Column(
+        String(20),
+        nullable=False,
+        index=True,
+    )
+
+
+    direction = Column(
+        String(20),
+        nullable=True,
+    )
+
+
+    signal_confidence = Column(
+        String(50),
+        nullable=True,
+    )
+
+
+    trade_quality_score = Column(
+        Float,
+        nullable=True,
+    )
+
+
+    trade_quality_label = Column(
+        String(50),
+        nullable=True,
+    )
+
+
+    module_alignment = Column(
+        String(50),
+        nullable=True,
+        index=True,
+    )
+
+
+    decision_state = Column(
+        String(50),
+        nullable=True,
+    )
+
+
+    decision_color = Column(
+        String(20),
+        nullable=True,
+    )
+
+
+    entry = Column(
+        Float,
+        nullable=True,
+    )
+
+
+    stop = Column(
+        Float,
+        nullable=True,
+    )
+
+
+    target = Column(
+        Float,
+        nullable=True,
+    )
+
+
+    result = Column(
+        String(20),
+        nullable=True,
+    )
+
+
+    profit_points = Column(
+        Float,
+        nullable=True,
+    )
+
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+
+    closed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
     )
