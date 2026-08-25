@@ -148,7 +148,7 @@ def calculate_trade_quality(
 
 
 # =====================================================
-# CONFLITOS
+# DETECÇÃO DE CONFLITOS
 # =====================================================
 
 def detect_market_conflict(
@@ -156,7 +156,6 @@ def detect_market_conflict(
 ) -> Dict[str, Any]:
 
     conflicts = []
-
 
     direction = str(
         data.get(
@@ -171,12 +170,10 @@ def detect_market_conflict(
         {},
     )
 
-
     smc = data.get(
         "smc",
         {},
     )
-
 
     context = data.get(
         "market_context",
@@ -263,10 +260,12 @@ def calculate_alignment(
 ):
 
     if len(conflicts) == 0:
+
         return "ALINHADO"
 
 
     if len(conflicts) >= 3:
+
         return "CONFLITANTE"
 
 
@@ -330,10 +329,12 @@ def calculate_confidence_level(
 ):
 
     if quality >= 80:
+
         return "ALTA"
 
 
     if quality >= 55:
+
         return "MODERADA"
 
 
@@ -348,23 +349,45 @@ def calculate_confidence_level(
 def generate_user_message(
     state: str,
     conflicts: List[str],
+    data: Dict[str, Any],
 ):
+
+    direction = str(
+        data.get(
+            "direction",
+            "NEUTRO",
+        )
+    ).upper()
+
+
 
     if state == "READY":
 
         return (
-            "Cenário alinhado. "
-            "A oportunidade apresenta boa qualidade."
+            f"Viés {direction} identificado. "
+            "O cenário apresenta qualidade "
+            "suficiente para acompanhamento "
+            "da entrada."
         )
+
 
 
     if state == "WAIT_CONFIRMATION":
 
+        if conflicts:
+
+            return (
+                f"Viés {direction} identificado, "
+                "porém existem fatores de conflito. "
+                "Aguardar confirmação antes da entrada."
+            )
+
+
         return (
-            "Existe oportunidade identificada, "
-            "porém são necessárias confirmações "
-            "antes da entrada."
+            "Oportunidade identificada. "
+            "Aguardar confirmação do fluxo."
         )
+
 
 
     return (
@@ -383,18 +406,21 @@ def generate_ai_explanation(
     conflicts: List[str],
 ):
 
-    direction = data.get(
-        "direction",
-        "NEUTRO",
-    )
+    direction = str(
+        data.get(
+            "direction",
+            "NEUTRO",
+        )
+    ).upper()
+
 
 
     if conflicts:
 
         return (
             f"O modelo identificou {direction}, "
-            "mas existem fatores reduzindo "
-            "a qualidade da entrada."
+            "porém existem conflitos reduzindo "
+            "a qualidade da oportunidade."
         )
 
 
@@ -489,7 +515,6 @@ def build_ai_brain(
 
     return {
 
-
         "ai_score":
             ai_score,
 
@@ -508,8 +533,7 @@ def build_ai_brain(
         "trading_action":
             (
                 "AGUARDAR"
-                if decision["state"]
-                != "READY"
+                if decision["state"] != "READY"
                 else
                 "MONITORAR ENTRADA"
             ),
@@ -555,6 +579,7 @@ def build_ai_brain(
             generate_user_message(
                 decision["state"],
                 conflict["conflicts"],
+                data,
             ),
 
 
@@ -573,8 +598,7 @@ def build_ai_brain(
         "next_action":
             (
                 "Aguardar confirmação do fluxo"
-                if decision["state"]
-                != "READY"
+                if decision["state"] != "READY"
                 else
                 "Executar gestão da entrada"
             ),
