@@ -13,6 +13,7 @@ from app.services.ai_memory_service import (
     store_signal_memory,
     analyze_memory_context,
 )
+from app.services.ai_memory_database_service import save_ai_memory
 
 
 router = APIRouter(tags=["analyze"])
@@ -162,6 +163,22 @@ async def analyze(
             result
         )
 
+        # ==========================================
+        # AI MEMORY DATABASE V2
+        # ==========================================
+
+        db = SessionLocal()
+
+        try:
+
+            save_ai_memory(
+                db,
+                result,
+            )
+
+        finally:
+
+            db.close()
 
         # ==========================================
         # HISTÓRICO
