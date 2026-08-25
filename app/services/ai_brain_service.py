@@ -1,11 +1,25 @@
 from typing import Any, Dict, List
 
 
-def clamp(value: float, minimum: float = 0, maximum: float = 100) -> float:
-    """
-    Mantém valores dentro de um intervalo seguro.
-    """
-    return max(minimum, min(maximum, value))
+def clamp(
+    value: float,
+    minimum: float = 0,
+    maximum: float = 100,
+) -> float:
+    return max(
+        minimum,
+        min(maximum, value),
+    )
+
+
+def safe_float(
+    value: Any,
+    default: float = 50.0,
+) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
 
 
 def get_module_score(
@@ -13,26 +27,29 @@ def get_module_score(
     key: str,
     default: float = 50.0,
 ) -> float:
-    """
-    Recupera um score de módulo evitando erros
-    quando algum dado não existir.
-    """
-    try:
-        return float(modules.get(key, default))
-    except Exception:
-        return default
+
+    return safe_float(
+        modules.get(
+            key,
+            default,
+        ),
+        default,
+    )
 
 
-def calculate_ai_score(data: Dict[str, Any]) -> float:
-    """
-    Calcula o score consolidado da inteligência artificial.
+# =====================================================
+# AI SCORE PRINCIPAL
+# =====================================================
 
-    Importante:
-    Este score NÃO substitui o sinal original.
-    Ele apenas mede a qualidade do cenário.
-    """
 
-    modules = data.get("modules", {})
+def calculate_ai_score(
+    data: Dict[str, Any],
+) -> float:
+
+    modules = data.get(
+        "modules",
+        {},
+    )
 
     technical = get_module_score(
         modules,
@@ -67,10 +84,95 @@ def calculate_ai_score(data: Dict[str, Any]) -> float:
     )
 
 
-def classify_quality(score: float) -> str:
-    """
-    Classifica a qualidade do cenário.
-    """
+# =====================================================
+# QUALIDADE DO CENÁRIO
+# =====================================================
+
+
+def calculate_trade_quality(
+    data: Dict[str, Any],
+) -> float:
+
+    modules = data.get(
+        "modules",
+        {},
+    )
+
+    quality = calculate_ai_score(
+        data
+    )
+
+
+    final_signal = data.get(
+        "final_signal",
+        {},
+    )
+
+
+    strength = str(
+        final_signal.get(
+            "strength",
+            "",
+        )
+    ).upper()
+
+
+    # Penaliza sinal fraco
+
+    if strength == "FRACA":
+        quality -= 15
+
+
+    # Penaliza baixa confluência
+
+    confluence = safe_float(
+        final_signal.get(
+            "confluence_score",
+            50,
+        )
+    )
+
+
+    if confluence < 55:
+        quality -= 15
+
+
+    # Penaliza SMC sem confirmação
+
+    smc = get_module_score(
+        modules,
+        "smc",
+    )
+
+    if smc < 50:
+        quality -= 10
+
+
+    # Penaliza probabilidade baixa
+
+    probability = get_module_score(
+        modules,
+        "probabilistic",
+    )
+
+    if probability < 55:
+        quality -= 10
+
+
+    return round(
+        clamp(quality),
+        1,
+    )
+
+
+# =====================================================
+# CLASSIFICAÇÃO
+# =====================================================
+
+
+def classify_quality(
+    score: float,
+) -> str:
 
     if score >= 85:
         return "EXCELENTE"
@@ -84,187 +186,281 @@ def classify_quality(score: float) -> str:
     return "BAIXA"
 
 
-def generate_reasons(
+
+def calculate_grade(
+    score: float,
+) -> str:
+
+    if score >= 85:
+        return "A+"
+
+    if score >= 75:
+        return "A"
+
+    if score >= 60:
+        return "B"
+
+    if score >= 45:
+        return "C"
+
+    return "D"
+
+
+
+# =====================================================
+# DECISÃO OPERACIONAL
+# =====================================================
+
+
+def generate_recommendation(
+    trade_quality: float,
     data: Dict[str, Any],
-) -> List[str]:
-    """
-    Cria explicações positivas para o usuário.
-    """
+):
 
-    reasons = []
-
-    modules = data.get(
-        "modules",
-        {},
-    )
-
-    technical = data.get(
-        "technical",
-        {},
-    )
-
-    if get_module_score(modules, "technical") >= 70:
-        reasons.append(
-            "Confluência técnica favorável"
-        )
-
-    if get_module_score(modules, "smc") >= 70:
-        reasons.append(
-            "Smart Money confirmou o cenário"
-        )
-
-    if get_module_score(modules, "probabilistic") >= 70:
-        reasons.append(
-            "Probabilidade estatística positiva"
-        )
-
-    trend = str(
-        technical.get(
-            "trend_bias",
-            "",
+    direction = str(
+        data.get(
+            "direction",
+            "NEUTRO",
         )
     ).upper()
 
-    if trend == "ALTA":
-        reasons.append(
-            "Tendência compradora identificada"
-        )
 
-    elif trend == "BAIXA":
-        reasons.append(
-            "Tendência vendedora identificada"
-        )
+    if trade_quality < 55:
 
-    return reasons
+        return {
+            "recommendation":
+                "AGUARDAR",
+
+            "entry_allowed":
+                False,
+
+            "next_action":
+                "Aguardar confirmação ou rompimento",
+        }
 
 
-def generate_warnings(
+    if direction == "COMPRA":
+
+        return {
+            "recommendation":
+                "COMPRA AUTORIZADA",
+
+            "entry_allowed":
+                True,
+
+            "next_action":
+                "Monitorar entrada e gestão de risco",
+        }
+
+
+    if direction == "VENDA":
+
+        return {
+            "recommendation":
+                "VENDA AUTORIZADA",
+
+            "entry_allowed":
+                True,
+
+            "next_action":
+                "Monitorar entrada e gestão de risco",
+        }
+
+
+    return {
+        "recommendation":
+            "AGUARDAR",
+
+        "entry_allowed":
+            False,
+
+        "next_action":
+            "Esperar definição do mercado",
+    }
+
+
+
+# =====================================================
+# EXPLICAÇÃO
+# =====================================================
+
+
+def generate_reasons(
     data: Dict[str, Any],
 ) -> List[str]:
-    """
-    Gera alertas de risco.
-    """
 
-    warnings = []
+    reasons = []
+
 
     modules = data.get(
         "modules",
         {},
     )
 
-    market_context = data.get(
-        "market_context",
-        {},
-    )
-
-    timing = get_module_score(
-        modules,
-        "timing",
-    )
-
-    if timing < 60:
-        warnings.append(
-            "Momento de entrada exige cautela"
-        )
-
-    zone = str(
-        market_context.get(
-            "zone_label",
-            "",
-        )
-    )
-
-    if zone.upper() == "PREMIUM":
-        warnings.append(
-            "Preço próximo de região esticada"
-        )
-
-    if zone.upper() == "DESCONTO":
-        warnings.append(
-            "Entrada em região favorável de preço"
-        )
-
-    return warnings
-
-
-def calculate_confidence(
-    data: Dict[str, Any],
-    ai_score: float,
-) -> float:
-    """
-    Combina confiança original do motor
-    com qualidade geral do cenário.
-    """
-
-    original_confidence = data.get(
-        "confidence",
-        50,
-    )
-
-    try:
-        original_confidence = float(
-            original_confidence
-        )
-    except Exception:
-        original_confidence = 50.0
-
-    confidence = (
-        original_confidence * 0.60
-        + ai_score * 0.40
-    )
-
-    return round(
-        clamp(confidence),
-        1,
-    )
-
-
-def build_ai_brain(
-    data: Dict[str, Any],
-) -> Dict[str, Any]:
-    """
-    Função principal do AI Brain.
-
-    Recebe o resultado do analysis_service
-    e retorna uma camada inteligente.
-    """
-
-    ai_score = calculate_ai_score(
-        data
-    )
 
     final_signal = data.get(
         "final_signal",
         {},
     )
 
+
+    if get_module_score(
+        modules,
+        "technical",
+    ) >= 70:
+
+        reasons.append(
+            "Confluência técnica favorável"
+        )
+
+
+    if get_module_score(
+        modules,
+        "smc",
+    ) >= 70:
+
+        reasons.append(
+            "Smart Money confirmado"
+        )
+
+
+    if final_signal.get(
+        "filter_reasons"
+    ):
+
+        reasons.extend(
+            final_signal[
+                "filter_reasons"
+            ]
+        )
+
+
+    if not reasons:
+
+        reasons.append(
+            "Sem vantagem estatística clara"
+        )
+
+
+    return reasons
+
+
+
+def generate_warnings(
+    data: Dict[str, Any],
+) -> List[str]:
+
+    warnings = []
+
+
+    context = data.get(
+        "market_context",
+        {},
+    )
+
+
+    if context.get(
+        "zone_label"
+    ) == "Premium":
+
+        warnings.append(
+            "Preço em região Premium"
+        )
+
+
+    return warnings
+
+
+
+# =====================================================
+# FUNÇÃO PRINCIPAL
+# =====================================================
+
+
+def build_ai_brain(
+    data: Dict[str, Any],
+) -> Dict[str, Any]:
+
+
+    ai_score = calculate_ai_score(
+        data
+    )
+
+
+    trade_quality = calculate_trade_quality(
+        data
+    )
+
+
+    recommendation = generate_recommendation(
+        trade_quality,
+        data,
+    )
+
+
     return {
-        "score": ai_score,
 
-        "quality": classify_quality(
-            ai_score
-        ),
-
-        "confidence": calculate_confidence(
-            data,
+        "score":
             ai_score,
-        ),
 
-        "decision": data.get(
-            "direction",
-            "NEUTRO",
-        ),
 
-        "strength": final_signal.get(
-            "strength",
-            "MODERADA",
-        ),
+        "quality":
+            classify_quality(
+                ai_score
+            ),
 
-        "reasons": generate_reasons(
-            data
-        ),
 
-        "warnings": generate_warnings(
-            data
-        ),
+        "trade_quality_score":
+            trade_quality,
+
+
+        "grade":
+            calculate_grade(
+                trade_quality
+            ),
+
+
+        "decision":
+            data.get(
+                "direction",
+                "NEUTRO",
+            ),
+
+
+        "recommendation":
+            recommendation[
+                "recommendation"
+            ],
+
+
+        "entry_allowed":
+            recommendation[
+                "entry_allowed"
+            ],
+
+
+        "next_action":
+            recommendation[
+                "next_action"
+            ],
+
+
+        "market_state":
+            (
+                "INDECISÃO"
+                if not recommendation["entry_allowed"]
+                else "OPORTUNIDADE"
+            ),
+
+
+        "reasons":
+            generate_reasons(
+                data
+            ),
+
+
+        "warnings":
+            generate_warnings(
+                data
+            ),
     }
