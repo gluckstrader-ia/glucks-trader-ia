@@ -345,20 +345,21 @@ def analyze_module_agreement(
 
 
 
-    if max(
-        buy,
-        sell,
-    ) >= 2:
+    if buy == 3 or sell == 3:
 
         alignment = "ALINHADO"
 
-    elif neutral >= 2:
+    elif max(buy, sell) == 2 and neutral == 1:
 
         alignment = "PARCIAL"
 
-    else:
+    elif buy > 0 and sell > 0:
 
         alignment = "DIVERGENTE"
+
+    else:
+
+        alignment = "NEUTRO"
 
 
 
@@ -368,6 +369,9 @@ def analyze_module_agreement(
             votes,
 
         "module_alignment":
+            alignment,
+
+        "agreement_label":
             alignment,
 
         "module_agreement_score":
@@ -624,5 +628,10 @@ def build_ai_brain(
 
         "decision_color":
             decision["color"],
+
+        "agreement_label":
+            agreement[
+                "agreement_label"
+            ],
 
     }
