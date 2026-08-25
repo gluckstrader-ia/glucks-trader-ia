@@ -9,7 +9,7 @@ def clamp(
     value: float,
     minimum: float = 0,
     maximum: float = 100,
-) -> float:
+):
 
     return max(
         minimum,
@@ -20,7 +20,7 @@ def clamp(
 def safe_float(
     value: Any,
     default: float = 50,
-) -> float:
+):
 
     try:
         return float(value)
@@ -33,7 +33,7 @@ def safe_float(
 def module_score(
     modules: Dict[str, Any],
     key: str,
-) -> float:
+):
 
     return safe_float(
         modules.get(
@@ -45,12 +45,12 @@ def module_score(
 
 
 # =====================================================
-# AI SCORE
+# SCORE PRINCIPAL
 # =====================================================
 
 def calculate_ai_score(
     data: Dict[str, Any],
-) -> float:
+):
 
     modules = data.get(
         "modules",
@@ -88,6 +88,16 @@ def calculate_ai_score(
     )
 
 
+    agreement = analyze_module_agreement(
+        data
+    )
+
+
+    if agreement["module_alignment"] == "DIVERGENTE":
+
+        score -= 10
+
+
     return round(
         clamp(score),
         1,
@@ -96,22 +106,15 @@ def calculate_ai_score(
 
 
 # =====================================================
-# TRADE QUALITY
+# QUALIDADE OPERACIONAL
 # =====================================================
 
 def calculate_trade_quality(
     data: Dict[str, Any],
-) -> float:
-
+):
 
     quality = calculate_ai_score(
         data
-    )
-
-
-    modules = data.get(
-        "modules",
-        {},
     )
 
 
@@ -136,24 +139,6 @@ def calculate_trade_quality(
 
 
 
-    if module_score(
-        modules,
-        "smc",
-    ) < 50:
-
-        quality -= 10
-
-
-
-    if module_score(
-        modules,
-        "probabilistic",
-    ) < 55:
-
-        quality -= 10
-
-
-
     return round(
         clamp(quality),
         1,
@@ -162,7 +147,7 @@ def calculate_trade_quality(
 
 
 # =====================================================
-# CONFIANÇA DO SINAL
+# SIGNAL CONFIDENCE
 # =====================================================
 
 def calculate_signal_confidence(
@@ -196,7 +181,7 @@ def calculate_signal_confidence(
 
 
 # =====================================================
-# QUALIDADE OPERACIONAL
+# TRADE QUALITY LABEL
 # =====================================================
 
 def calculate_trade_quality_label(
@@ -216,22 +201,48 @@ def calculate_trade_quality_label(
 
 
 # =====================================================
-# CONFLITOS REAIS
+# MODULE AGREEMENT ENGINE
 # =====================================================
 
-def detect_market_conflicts(
+def normalize_direction(
+    value: Any,
+):
+
+    value = str(
+        value or ""
+    ).upper()
+
+
+    if value in [
+        "BUY",
+        "COMPRA",
+        "BULLISH",
+        "ALTA",
+    ]:
+        return "COMPRA"
+
+
+    if value in [
+        "SELL",
+        "VENDA",
+        "BEARISH",
+        "BAIXA",
+    ]:
+        return "VENDA"
+
+
+    return "NEUTRO"
+
+
+
+def analyze_module_agreement(
     data: Dict[str, Any],
 ):
 
-    conflicts = []
-
-
-    direction = str(
-        data.get(
-            "direction",
-            "NEUTRO",
-        )
-    ).upper()
+    modules = data.get(
+        "modules",
+        {},
+    )
 
 
     smc = data.get(
@@ -240,47 +251,132 @@ def detect_market_conflicts(
     )
 
 
-    smc_bias = str(
-        smc.get(
-            "bias",
-            "",
+    wegd = data.get(
+        "wegd",
+        {},
+    )
+
+
+    votes = {
+
+        "technical":
+            normalize_direction(
+                modules.get(
+                    "technical_direction"
+                )
+                or
+                data.get(
+                    "direction"
+                )
+            ),
+
+
+        "smc":
+            normalize_direction(
+                smc.get(
+                    "bias"
+                )
+            ),
+
+
+        "wegd":
+            normalize_direction(
+                wegd.get(
+                    "bias"
+                )
+            ),
+
+    }
+
+
+    directions = list(
+        votes.values()
+    )
+
+
+    buy = directions.count(
+        "COMPRA"
+    )
+
+    sell = directions.count(
+        "VENDA"
+    )
+
+    neutral = directions.count(
+        "NEUTRO"
+    )
+
+
+    score = max(
+        buy,
+        sell,
+    ) / len(
+        directions
+    ) * 100
+
+
+
+    conflicts = []
+
+
+    if (
+        buy > 0
+        and sell > 0
+    ):
+
+        conflicts.append(
+            "Módulos com direções opostas"
         )
-    ).upper()
 
 
 
-    if direction == "COMPRA":
+    if (
+        votes["technical"]
+        != votes["wegd"]
+        and
+        votes["technical"] != "NEUTRO"
+        and
+        votes["wegd"] != "NEUTRO"
+    ):
 
-        if smc_bias in [
-            "BEARISH",
-            "BAIXA",
-        ]:
-
-            conflicts.append(
-                "SMC divergente da compra"
-            )
+        conflicts.append(
+            "Técnico divergente do WE/DG"
+        )
 
 
 
-    if direction == "VENDA":
+    if max(
+        buy,
+        sell,
+    ) >= 2:
 
-        if smc_bias in [
-            "BULLISH",
-            "ALTA",
-        ]:
+        alignment = "ALINHADO"
 
-            conflicts.append(
-                "SMC divergente da venda"
-            )
+    elif neutral >= 2:
+
+        alignment = "PARCIAL"
+
+    else:
+
+        alignment = "DIVERGENTE"
 
 
 
     return {
 
-        "conflict_detected":
-            len(conflicts) > 0,
+        "module_votes":
+            votes,
 
-        "conflicts":
+        "module_alignment":
+            alignment,
+
+        "module_agreement_score":
+            round(
+                score,
+                1
+            ),
+
+        "module_conflicts":
             conflicts,
 
     }
@@ -288,7 +384,35 @@ def detect_market_conflicts(
 
 
 # =====================================================
-# ALERTAS OPERACIONAIS
+# CONFLITOS REAIS
+# =====================================================
+
+def detect_market_conflicts(
+    data: Dict[str, Any],
+):
+
+    agreement = analyze_module_agreement(
+        data
+    )
+
+
+    return {
+
+        "conflict_detected":
+            len(
+                agreement["module_conflicts"]
+            ) > 0,
+
+
+        "conflicts":
+            agreement["module_conflicts"],
+
+    }
+
+
+
+# =====================================================
+# WARNINGS
 # =====================================================
 
 def detect_market_warnings(
@@ -296,12 +420,6 @@ def detect_market_warnings(
 ):
 
     warnings = []
-
-
-    modules = data.get(
-        "modules",
-        {},
-    )
 
 
     context = data.get(
@@ -326,26 +444,6 @@ def detect_market_warnings(
         )
 
 
-
-    if zone == "DISCOUNT":
-
-        warnings.append(
-            "Preço em região Discount"
-        )
-
-
-
-    if module_score(
-        modules,
-        "timing",
-    ) < 55:
-
-        warnings.append(
-            "Timing sem confirmação forte"
-        )
-
-
-
     return {
 
         "warning_detected":
@@ -359,29 +457,7 @@ def detect_market_warnings(
 
 
 # =====================================================
-# ALINHAMENTO
-# =====================================================
-
-def calculate_alignment(
-    conflicts: List[str],
-):
-
-    if len(conflicts) == 0:
-
-        return "ALINHADO"
-
-
-    if len(conflicts) >= 3:
-
-        return "CONFLITANTE"
-
-
-    return "PARCIAL"
-
-
-
-# =====================================================
-# DECISÃO
+# DECISION STATE
 # =====================================================
 
 def calculate_decision_state(
@@ -392,13 +468,8 @@ def calculate_decision_state(
     if quality < 50:
 
         return {
-
-            "state":
-                "BLOCKED",
-
-            "color":
-                "RED",
-
+            "state":"BLOCKED",
+            "color":"RED"
         }
 
 
@@ -406,174 +477,28 @@ def calculate_decision_state(
     if conflict or quality < 75:
 
         return {
-
-            "state":
-                "WAIT_CONFIRMATION",
-
-            "color":
-                "YELLOW",
-
+            "state":"WAIT_CONFIRMATION",
+            "color":"YELLOW"
         }
 
 
 
     return {
-
-        "state":
-            "READY",
-
-        "color":
-            "GREEN",
-
+        "state":"READY",
+        "color":"GREEN"
     }
 
 
 
 # =====================================================
-# EXPLICAÇÕES
-# =====================================================
-
-def generate_ai_explanation(
-    data: Dict[str, Any],
-    conflicts: List[str],
-):
-
-    direction = str(
-        data.get(
-            "direction",
-            "NEUTRO",
-        )
-    ).upper()
-
-
-
-    if conflicts:
-
-        return (
-            f"O modelo identificou {direction}, "
-            "porém existem conflitos entre os módulos."
-        )
-
-
-    return (
-        f"O cenário apresenta alinhamento "
-        f"favorável para {direction}."
-    )
-
-
-
-def generate_user_message(
-    state: str,
-    warnings: List[str],
-    conflicts: List[str],
-    data: Dict[str, Any],
-):
-
-    direction = str(
-        data.get(
-            "direction",
-            "NEUTRO",
-        )
-    ).upper()
-
-
-
-    if state == "READY":
-
-        return (
-            f"Viés {direction} identificado. "
-            "Cenário com qualidade operacional."
-        )
-
-
-
-    if state == "WAIT_CONFIRMATION":
-
-        if conflicts:
-
-            return (
-                f"Viés {direction} identificado, "
-                "porém existem conflitos entre modelos."
-            )
-
-
-        if warnings:
-
-            return (
-                f"Viés {direction} identificado, "
-                "aguardar confirmação devido aos alertas."
-            )
-
-
-
-        return (
-            "Aguardar confirmação do fluxo."
-        )
-
-
-
-    return (
-        "Cenário abaixo do recomendado "
-        "para operação."
-    )
-
-
-
-# =====================================================
-# FATORES
-# =====================================================
-
-def positive_factors(
-    data: Dict[str, Any],
-):
-
-    factors = []
-
-    modules = data.get(
-        "modules",
-        {},
-    )
-
-
-    if module_score(
-        modules,
-        "technical",
-    ) >= 70:
-
-        factors.append(
-            "Força técnica favorável"
-        )
-
-
-    if module_score(
-        modules,
-        "probabilistic",
-    ) >= 60:
-
-        factors.append(
-            "Probabilidade aceitável"
-        )
-
-
-    return factors
-
-
-
-# =====================================================
-# FUNÇÃO PRINCIPAL
+# MAIN
 # =====================================================
 
 def build_ai_brain(
     data: Dict[str, Any],
 ):
 
-
-    ai_score = calculate_ai_score(
-        data
-    )
-
-
-    trade_quality = calculate_trade_quality(
+    agreement = analyze_module_agreement(
         data
     )
 
@@ -588,8 +513,13 @@ def build_ai_brain(
     )
 
 
+    quality = calculate_trade_quality(
+        data
+    )
+
+
     decision = calculate_decision_state(
-        trade_quality,
+        quality,
         conflicts["conflict_detected"],
     )
 
@@ -597,23 +527,25 @@ def build_ai_brain(
     return {
 
         "ai_score":
-            ai_score,
+            calculate_ai_score(
+                data
+            ),
 
 
         "trade_quality_score":
-            trade_quality,
+            quality,
 
 
         "trade_quality_label":
             calculate_trade_quality_label(
-                trade_quality
+                quality
             ),
 
 
         "signal_detected":
             data.get(
                 "direction",
-                "NEUTRO",
+                "NEUTRO"
             ),
 
 
@@ -623,10 +555,59 @@ def build_ai_brain(
             ),
 
 
+        "module_votes":
+            agreement[
+                "module_votes"
+            ],
+
+
+        "module_alignment":
+            agreement[
+                "module_alignment"
+            ],
+
+
+        "module_agreement_score":
+            agreement[
+                "module_agreement_score"
+            ],
+
+
+        "module_conflicts":
+            agreement[
+                "module_conflicts"
+            ],
+
+
+        "conflict_detected":
+            conflicts[
+                "conflict_detected"
+            ],
+
+
+        "conflicts":
+            conflicts[
+                "conflicts"
+            ],
+
+
+        "warning_detected":
+            warnings[
+                "warning_detected"
+            ],
+
+
+        "warnings":
+            warnings[
+                "warnings"
+            ],
+
+
         "trading_action":
             (
                 "AGUARDAR"
-                if decision["state"] != "READY"
+                if decision["state"]
+                != "READY"
                 else
                 "MONITORAR ENTRADA"
             ),
@@ -643,66 +624,5 @@ def build_ai_brain(
 
         "decision_color":
             decision["color"],
-
-
-        "market_alignment":
-            calculate_alignment(
-                conflicts["conflicts"]
-            ),
-
-
-        "conflict_detected":
-            conflicts["conflict_detected"],
-
-
-        "conflicts":
-            conflicts["conflicts"],
-
-
-        "warning_detected":
-            warnings["warning_detected"],
-
-
-        "warnings":
-            warnings["warnings"],
-
-
-        "ai_explanation":
-            generate_ai_explanation(
-                data,
-                conflicts["conflicts"],
-            ),
-
-
-        "user_message":
-            generate_user_message(
-                decision["state"],
-                warnings["warnings"],
-                conflicts["conflicts"],
-                data,
-            ),
-
-
-        "positive_factors":
-            positive_factors(
-                data
-            ),
-
-
-        "negative_factors":
-            (
-                conflicts["conflicts"]
-                +
-                warnings["warnings"]
-            ),
-
-
-        "next_action":
-            (
-                "Aguardar confirmação do fluxo"
-                if decision["state"] != "READY"
-                else
-                "Executar gestão da entrada"
-            ),
 
     }
