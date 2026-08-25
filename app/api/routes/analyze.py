@@ -9,6 +9,7 @@ from app.models import User
 from app.services.analysis_history_service import save_analysis
 from app.services.analysis_service import analyze_asset
 from app.services.ai_brain_service import build_ai_brain
+from app.services.ai_memory_service import store_signal_memory
 
 
 router = APIRouter(tags=["analyze"])
@@ -146,6 +147,20 @@ async def analyze(
         ai_brain = build_ai_brain(result)
 
         result["ai_brain"] = ai_brain
+
+        # ==========================================
+        # AI MEMORY LAYER
+        # ==========================================
+        #
+        # Salva o contexto da análise para aprendizado
+        # futuro da IA.
+        #
+        # Não interfere na decisão atual.
+        #
+
+        store_signal_memory(
+            result
+        )
 
         # ==========================================
         # HISTÓRICO
