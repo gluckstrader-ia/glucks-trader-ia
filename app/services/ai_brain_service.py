@@ -29,6 +29,7 @@ def safe_float(
         return default
 
 
+
 def module_score(
     modules: Dict[str, Any],
     key: str,
@@ -54,6 +55,7 @@ def calculate_ai_score(
         "modules",
         {},
     )
+
 
     score = (
 
@@ -82,12 +84,15 @@ def calculate_ai_score(
             modules,
             "timing",
         ) * 0.15
+
     )
+
 
     return round(
         clamp(score),
         1,
     )
+
 
 
 # =====================================================
@@ -102,10 +107,12 @@ def calculate_trade_quality(
         data
     )
 
+
     modules = data.get(
         "modules",
         {},
     )
+
 
     final_signal = data.get(
         "final_signal",
@@ -121,8 +128,11 @@ def calculate_trade_quality(
     ).upper()
 
 
+
     if strength == "FRACA":
+
         quality -= 15
+
 
 
     if module_score(
@@ -133,6 +143,7 @@ def calculate_trade_quality(
         quality -= 10
 
 
+
     if module_score(
         modules,
         "probabilistic",
@@ -141,10 +152,74 @@ def calculate_trade_quality(
         quality -= 10
 
 
+
     return round(
         clamp(quality),
         1,
     )
+
+
+
+# =====================================================
+# CONFIANÇA DO SINAL
+# =====================================================
+
+def calculate_signal_confidence(
+    data: Dict[str, Any],
+):
+
+    final_signal = data.get(
+        "final_signal",
+        {},
+    )
+
+
+    confidence = safe_float(
+        final_signal.get(
+            "confidence",
+            50,
+        )
+    )
+
+
+    if confidence >= 80:
+
+        return "ALTA"
+
+
+
+    if confidence >= 60:
+
+        return "MODERADA"
+
+
+
+    return "BAIXA"
+
+
+
+# =====================================================
+# QUALIDADE OPERACIONAL
+# =====================================================
+
+def calculate_trade_quality_label(
+    quality: float,
+):
+
+    if quality >= 75:
+
+        return "ALTA"
+
+
+
+    if quality >= 55:
+
+        return "MODERADA"
+
+
+
+    return "BAIXA"
+
 
 
 # =====================================================
@@ -153,9 +228,10 @@ def calculate_trade_quality(
 
 def detect_market_conflict(
     data: Dict[str, Any],
-) -> Dict[str, Any]:
+):
 
     conflicts = []
+
 
     direction = str(
         data.get(
@@ -170,15 +246,18 @@ def detect_market_conflict(
         {},
     )
 
+
     smc = data.get(
         "smc",
         {},
     )
 
+
     context = data.get(
         "market_context",
         {},
     )
+
 
 
     smc_bias = str(
@@ -210,6 +289,7 @@ def detect_market_conflict(
             )
 
 
+
     if direction == "VENDA":
 
         if smc_bias in [
@@ -222,11 +302,13 @@ def detect_market_conflict(
             )
 
 
+
     if zone == "PREMIUM":
 
         conflicts.append(
             "Preço em região Premium"
         )
+
 
 
     if module_score(
@@ -239,10 +321,12 @@ def detect_market_conflict(
         )
 
 
+
     return {
 
         "conflict_detected":
             len(conflicts) > 0,
+
 
         "conflicts":
             conflicts,
@@ -264,9 +348,11 @@ def calculate_alignment(
         return "ALINHADO"
 
 
+
     if len(conflicts) >= 3:
 
         return "CONFLITANTE"
+
 
 
     return "PARCIAL"
@@ -274,7 +360,7 @@ def calculate_alignment(
 
 
 # =====================================================
-# ESTADO OPERACIONAL
+# DECISÃO OPERACIONAL
 # =====================================================
 
 def calculate_decision_state(
@@ -295,6 +381,7 @@ def calculate_decision_state(
         }
 
 
+
     if conflict or quality < 75:
 
         return {
@@ -308,6 +395,7 @@ def calculate_decision_state(
         }
 
 
+
     return {
 
         "state":
@@ -317,83 +405,6 @@ def calculate_decision_state(
             "GREEN",
 
     }
-
-
-
-# =====================================================
-# NÍVEL DE CONFIANÇA
-# =====================================================
-
-def calculate_confidence_level(
-    quality: float,
-):
-
-    if quality >= 80:
-
-        return "ALTA"
-
-
-    if quality >= 55:
-
-        return "MODERADA"
-
-
-    return "BAIXA"
-
-
-
-# =====================================================
-# MENSAGEM PARA USUÁRIO
-# =====================================================
-
-def generate_user_message(
-    state: str,
-    conflicts: List[str],
-    data: Dict[str, Any],
-):
-
-    direction = str(
-        data.get(
-            "direction",
-            "NEUTRO",
-        )
-    ).upper()
-
-
-
-    if state == "READY":
-
-        return (
-            f"Viés {direction} identificado. "
-            "O cenário apresenta qualidade "
-            "suficiente para acompanhamento "
-            "da entrada."
-        )
-
-
-
-    if state == "WAIT_CONFIRMATION":
-
-        if conflicts:
-
-            return (
-                f"Viés {direction} identificado, "
-                "porém existem fatores de conflito. "
-                "Aguardar confirmação antes da entrada."
-            )
-
-
-        return (
-            "Oportunidade identificada. "
-            "Aguardar confirmação do fluxo."
-        )
-
-
-
-    return (
-        "A qualidade do cenário está abaixo "
-        "do recomendado para operação."
-    )
 
 
 
@@ -424,9 +435,56 @@ def generate_ai_explanation(
         )
 
 
+
     return (
         f"O cenário apresenta alinhamento "
         f"favorável para {direction}."
+    )
+
+
+
+# =====================================================
+# MENSAGEM USUÁRIO
+# =====================================================
+
+def generate_user_message(
+    state: str,
+    conflicts: List[str],
+    data: Dict[str, Any],
+):
+
+    direction = str(
+        data.get(
+            "direction",
+            "NEUTRO",
+        )
+    ).upper()
+
+
+
+    if state == "READY":
+
+        return (
+            f"Viés {direction} identificado. "
+            "O cenário apresenta qualidade "
+            "suficiente para acompanhamento."
+        )
+
+
+
+    if state == "WAIT_CONFIRMATION":
+
+        return (
+            f"Viés {direction} identificado, "
+            "porém existem fatores de conflito. "
+            "Aguardar confirmação antes da entrada."
+        )
+
+
+
+    return (
+        "A qualidade do cenário está abaixo "
+        "do recomendado para operação."
     )
 
 
@@ -515,12 +573,19 @@ def build_ai_brain(
 
     return {
 
+
         "ai_score":
             ai_score,
 
 
         "trade_quality_score":
             trade_quality,
+
+
+        "trade_quality_label":
+            calculate_trade_quality_label(
+                trade_quality
+            ),
 
 
         "signal_detected":
@@ -530,10 +595,17 @@ def build_ai_brain(
             ),
 
 
+        "signal_confidence":
+            calculate_signal_confidence(
+                data
+            ),
+
+
         "trading_action":
             (
                 "AGUARDAR"
-                if decision["state"] != "READY"
+                if decision["state"]
+                != "READY"
                 else
                 "MONITORAR ENTRADA"
             ),
@@ -542,12 +614,6 @@ def build_ai_brain(
         "entry_allowed":
             decision["state"]
             == "READY",
-
-
-        "confidence_level":
-            calculate_confidence_level(
-                trade_quality
-            ),
 
 
         "decision_state":
@@ -563,9 +629,7 @@ def build_ai_brain(
 
 
         "conflict_detected":
-            conflict[
-                "conflict_detected"
-            ],
+            conflict["conflict_detected"],
 
 
         "ai_explanation":
@@ -598,7 +662,8 @@ def build_ai_brain(
         "next_action":
             (
                 "Aguardar confirmação do fluxo"
-                if decision["state"] != "READY"
+                if decision["state"]
+                != "READY"
                 else
                 "Executar gestão da entrada"
             ),
