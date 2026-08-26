@@ -56,6 +56,96 @@ class AnalyzeRequest(BaseModel):
 
 
 @router.post(
+    "/analyze/live",
+    response_model=Dict[str, Any],
+)
+async def analyze_live(
+    payload: AnalyzeRequest,
+    current_user: User = Depends(
+        get_current_active_user
+    ),
+):
+    """
+    Reprocessamento leve usado exclusivamente pelo Painel Técnico Vivo.
+
+    IMPORTANTE:
+    - calcula mercado + AI Brain com dados atuais;
+    - NÃO grava histórico de análises;
+    - NÃO grava memória de sinais;
+    - NÃO altera os outros painéis do frontend.
+
+    O frontend chama esta rota somente depois da primeira análise manual.
+    """
+
+    try:
+        asset_type_normalized = payload.asset_type
+
+        if asset_type_normalized == "indices":
+            asset_type_normalized = "index"
+
+        elif asset_type_normalized in {
+            "acoes",
+            "acao",
+        }:
+            asset_type_normalized = "stock"
+
+        elif asset_type_normalized in {
+            "acao_br",
+            "acoes_br",
+            "stock_br",
+        }:
+            asset_type_normalized = "b3"
+
+        elif asset_type_normalized in {
+            "future_us",
+            "futuro_us",
+            "futuros_us",
+        }:
+            asset_type_normalized = "future_us"
+
+        elif asset_type_normalized in {
+            "commodity",
+            "commodities",
+        }:
+            asset_type_normalized = "commodity"
+
+        result = analyze_asset(
+            asset=payload.asset,
+            asset_type=asset_type_normalized,
+            timeframe=payload.timeframe,
+        )
+
+        # O motor vivo precisa da mesma decisão estratégica usada no painel,
+        # mas sem persistir a leitura em histórico/memória a cada atualização.
+        result["ai_brain"] = build_ai_brain(result)
+
+        return result
+
+    except ValueError as e:
+        print(
+            f"ERRO DE VALIDAÇÃO NO /api/analyze/live: {e}"
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e),
+        )
+
+    except Exception as e:
+        print(
+            f"ERRO NO /api/analyze/live: {e}"
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Erro interno ao atualizar o painel vivo: "
+                f"{str(e)}"
+            ),
+        )
+
+
+@router.post(
     "/analyze",
     response_model=Dict[str, Any],
 )
